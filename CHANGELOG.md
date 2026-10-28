@@ -5,7 +5,7 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.1.0] - 2026-10-28
+## [1.1.0] - 2026-10-29
 
 ### Added
 
@@ -51,6 +51,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   already had this check.
 - Minor-unit digits are worked out when a currency is first used rather than for every
   currency at start-up.
+- A redesign of every screen, in light and dark, on phone and desktop, keeping the misty
+  hero, orbit lines and calm palette:
+  - "Start a trip" is the primary action on the start screen.
+  - Each member keeps one colour everywhere they appear: ten tones, each tuned for light
+    and dark.
+  - On phones, the trip header collapses into a slim bar with the trip name and total
+    as you scroll.
+  - Settle up opens with a diagram, one row per payment, linking each payer to the person
+    they pay with a curve in the payer's colour. Marking a payment paid folds its row away.
+  - When the trip is settled, Balances and Settle up show an "Everyone's square" view
+    with the trip's total, expenses and payments.
+  - Toasts are opaque in both themes. Hover styles apply only to devices that have a
+    mouse, so tapping a tab no longer leaves a hover highlight behind.
+  - Import errors appear above the tab bar. Copy summary and Record a payment line up
+    with the rows above them.
+  - The per-person line reads "€X each" only when every share is equal. Otherwise it
+    shows the range of shares.
+
+### Fixed
+
+- A payment form error now clears as soon as the field is corrected, instead of staying
+  until the next save.
+- A failed Create trip moves focus to the first field that needs attention.
+- The "Loading FairShare…" card no longer causes a layout shift when the app replaces it.
+  It is overlaid instead of placed in the page, and it only appears if loading takes
+  longer than 0.8 seconds.
+- Screen-reader messages no longer end in a double full stop. Undo names what it
+  restored, for example "Tram restored".
 
 ## [1.0.0] - 2026-10-28
 

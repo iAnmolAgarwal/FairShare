@@ -1,6 +1,6 @@
 {
   "name": "fairshare",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "description": "FairShare: split trip costs between friends and see who owes whom. Runs entirely in the browser, no backend.",
   "license": "MIT",
