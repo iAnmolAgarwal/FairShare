@@ -3138,10 +3138,16 @@ select[aria-invalid="true"] {
   pointer-events: none;
 }
 
-/* Copy summary lines up with the rows above it. */
+/* Copy summary and Record a payment line up with the row content above them. */
+#view-settle .copy-settle-btn,
+#view-settle #record-payment {
+  width: calc(100% - 24px);
+  margin-left: 12px;
+  margin-right: 12px;
+}
 #view-settle .copy-settle-btn {
-  width: 100%;
-  margin: 6px 0 2px;
+  margin-top: 6px;
+  margin-bottom: 2px;
 }
 
 /* ---------- The settled moment ---------- */
