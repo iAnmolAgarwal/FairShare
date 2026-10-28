@@ -5,6 +5,30 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2026-10-28
+
+First public release.
+
+### Added
+
+- `npm run build` writes a static `dist/` (index.html, core.js, app.js, styles.css) for
+  GitHub Pages. Asset URLs get the same content-hash versions the dev server uses and stay
+  relative, so the site also works from a sub-path. The Content Security Policy is
+  embedded as a `<meta>` tag because Pages cannot send headers.
+- GitHub Actions: CI runs lint, tests and the build on every push and pull request, and a
+  Pages workflow deploys `dist/` on pushes to `main`.
+- MIT license.
+
+### Changed
+
+- Removed the remaining uses of the app's earlier name, SplitSafar. The core API is
+  exposed only as `window.FairShareCore`, and the dev server's root override is now
+  `FAIRSHARE_ROOT`.
+- Browser storage keys are now `fairshare.*.v1`. On first load, data saved under the old
+  `splitsafar.*.v1` keys is moved to the new keys once; nothing is overwritten, and the old
+  copy is kept if the move cannot be written.
+- The dev server and the build share one module for asset hashing and the CSP.
+
 ## [0.31.7] - 2026-09-23
 
 ### Fixed
