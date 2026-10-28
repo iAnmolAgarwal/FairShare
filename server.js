@@ -9,7 +9,8 @@ const {
   stampAssetUrls,
 } = require("./scripts/assets");
 
-const HOST = "0.0.0.0";
+// Localhost by default; set HOST=0.0.0.0 to open it from a phone on the same network.
+const HOST = process.env.HOST || "127.0.0.1";
 const PORT = Number(process.env.PORT) || 5000;
 const ROOT = process.env.FAIRSHARE_ROOT || __dirname;
 
@@ -235,7 +236,7 @@ const server = http.createServer((req, res) => {
 if (require.main === module) {
   server.listen(PORT, HOST, () => {
     process.stdout.write(
-      "FairShare frontend available at http://" + HOST + ":" + PORT + "\n",
+      "FairShare running at http://" + HOST + ":" + PORT + "\n",
     );
   });
 }
