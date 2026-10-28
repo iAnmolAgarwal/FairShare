@@ -7,7 +7,7 @@
 
 <p align="center">
   <a href="https://fairshare-trips.vercel.app"><img src="https://img.shields.io/badge/live-fairshare--trips.vercel.app-4d7c0f" alt="Live at fairshare-trips.vercel.app"></a>
-  <img src="https://img.shields.io/badge/AI%20Innovation%20Arena-top%2010%20runner--up-2563EB" alt="One of the 10 runners-up in HackerEarth's AI Innovation Arena">
+  <img src="https://img.shields.io/badge/AI%20Innovation%20Arena-11th%20of%20241%20%C2%B7%20top%205%25-2563EB" alt="AI Innovation Arena: 11th of 241 submitted projects by Builder score, top 5 percent">
   <img src="https://img.shields.io/badge/arena%20evaluation-100%2F100-111827" alt="Scored 100 out of 100 on the arena's security, code quality, correctness, performance and accessibility evaluation">
   <img src="https://img.shields.io/badge/tests-163%20passing-4B5563" alt="163 tests pass">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-9CA3AF" alt="License: MIT"></a>
@@ -15,7 +15,7 @@
 
 FairShare splits the cost of a trip between friends and tells you who owes whom. You add the people and the expenses as they happen, and it keeps a running balance for everyone plus the shortest list of payments that settles the trip. There is no backend and no account: everything lives in your browser, on your phone.
 
-**One of the top 10 builders.** FairShare was named one of the 10 runners-up, by Builder score, in HackerEarth's [AI Innovation Arena](https://vibecodearena.ai/ai-innovation-arena) on VibeCode Arena (September to October 2026, 1,726 participants). Its final submission scored 100 on every axis of the arena's automated evaluation: security, code quality, correctness, performance and accessibility.
+**Top 5% of 241 projects.** FairShare placed 11th by Builder score in HackerEarth's [AI Innovation Arena](https://vibecodearena.ai/ai-innovation-arena) on VibeCode Arena (September to October 2026): the last of the 10 runners-up named after the Highest Project Score winner, out of 241 projects on the arena's project leaderboard and 1,726 registered participants (top 1% of everyone who joined). Its final submission scored 100 on every axis of the arena's automated evaluation: security, code quality, correctness, performance and accessibility.
 
 ## Try it in 30 seconds
 
