@@ -1159,3 +1159,38 @@ test('app smoke: a file that cannot be imported shows an alert and changes nothi
   assert.equal(errors.length, 0, 'no console errors: ' + errors.join(' | '));
   dom.window.close();
 });
+
+test('app smoke: member colours, honest share stat, summary text and clean announcements', async () => {
+  const { dom, errors } = page();
+  const doc = dom.window.document;
+  ['Sam', 'Priya', 'Jonas', 'Mei'].forEach((name) => addMember(doc, name));
+  createTrip(doc, 'Lisbon');
+  addExpense(doc, dom.window, { desc: 'Flat', amount: '400', payer: 'Sam', participants: ['Sam', 'Priya', 'Jonas', 'Mei'] });
+  assert.equal(doc.getElementById('expenses-stat').textContent, '₹100 each', 'an even split shows one share');
+  addExpense(doc, dom.window, { desc: 'Tram', amount: '30', payer: 'Priya', participants: ['Priya', 'Mei'] });
+  assert.equal(doc.getElementById('expenses-stat').textContent, '₹100–₹115 each', 'partial splits show the range, not total / people');
+
+  doc.getElementById('tab-balances').click();
+  const tones = Array.from(doc.querySelectorAll('#balance-list .expense-avatar')).map((el) =>
+    el.className.match(/avatar-tone-\d+/)[0]);
+  assert.equal(new Set(tones).size, 4, 'four members get four different colours');
+
+  let copied = '';
+  dom.window.navigator.clipboard = { writeText: (text) => { copied = text; return Promise.resolve(); } };
+  doc.getElementById('tab-settle').click();
+  doc.getElementById('copy-settle').click();
+  await tick(dom.window);
+  assert.equal(copied.split('\n')[0], 'FairShare - Lisbon');
+  assert.ok(copied.split('\n').slice(1).every((line) => / pays (Sam|Priya) ₹\d/.test(line)), 'one line per payment: ' + copied);
+
+  doc.getElementById('tab-expenses').click();
+  doc.querySelector('.expense-row').click();
+  doc.getElementById('delete-expense-dialog').click();
+  await announced(dom.window);
+  assert.equal(doc.getElementById('app-toast-live').textContent, 'Tram deleted. Undo available.', 'one full stop, not two');
+  doc.getElementById('app-toast-undo').click();
+  await announced(dom.window);
+  assert.equal(doc.getElementById('app-toast-live').textContent, 'Tram restored');
+  assert.equal(errors.length, 0, 'no console errors: ' + errors.join(' | '));
+  dom.window.close();
+});
