@@ -12,10 +12,15 @@
   const SCHEMA_VERSION = 4;
   const MIN_MEMBERS = 2;
   const MAX_MEMBERS = 10;
-  const MAX_AMOUNT_PAISE = 1000000000;
+  // Amount limits are in major units (dollars, yen, dinars), so they mean the same in
+  // every currency: 1e9 JPY, 1e11 minor units for USD, 1e12 for KWD.
+  const MAX_AMOUNT_MAJOR = 1000000000;
   // Limit for a payment typed by hand. Stored and suggested payments may be larger;
   // what keeps the arithmetic exact is that a trip's total volume stays a safe integer.
-  const MAX_PAYMENT_MINOR = MAX_AMOUNT_PAISE * 10000;
+  const MAX_PAYMENT_MAJOR = MAX_AMOUNT_MAJOR * 1000;
+  // No accepted currency has more than 3 minor digits, so no single expense in any
+  // currency exceeds this; the per-currency limit is checked against the trip.
+  const MAX_AMOUNT_MINOR_ANY = MAX_AMOUNT_MAJOR * 1000;
   // Sequence numbers stay far below MAX_SAFE_INTEGER so the next one is always exact.
   const MAX_SEQ = 2147483647;
   const MONTHS = [
@@ -32,7 +37,9 @@
     "Nov",
     "Dec",
   ];
-  const CURRENCY_NAMES = {
+  // Used when the engine cannot list currencies (no Intl.supportedValuesOf). These
+  // codes are always supported, so trips saved before the full list still load.
+  const FALLBACK_CURRENCY_NAMES = {
     INR: "Indian rupee",
     USD: "US dollar",
     EUR: "Euro",
@@ -46,26 +53,216 @@
     IDR: "Indonesian rupiah",
     LKR: "Sri Lankan rupee",
   };
-  const CURRENCY_CODES = Object.keys(CURRENCY_NAMES);
-  const CURRENCY_DIGITS = {};
-  CURRENCY_CODES.forEach((code) => {
-    CURRENCY_DIGITS[code] = new Intl.NumberFormat("en", {
-      style: "currency",
-      currency: code,
-    }).resolvedOptions().maximumFractionDigits;
+  // X-prefixed codes are mostly metals, test, fund and accounting units; these are the
+  // ones that circulate as cash.
+  const CIRCULATING_X_CODES = ["XAF", "XCD", "XCG", "XOF", "XPF"];
+  // Fund codes: never a trip currency.
+  const FUND_CURRENCIES = ["BOV", "CHE", "CHW", "CLF", "COU", "MXV", "USN", "USS", "UYI", "UYW"];
+  // Replaced currencies that some engines still list. They are left out of the picker
+  // but stay valid, so an older trip in one of them still loads.
+  const RETIRED_CURRENCIES = ["ANG", "BGN", "CUC", "HRK", "SLL", "ZWL"];
+  const COMMON_CURRENCY_CODES = [
+    "USD", "EUR", "GBP", "INR", "JPY", "CNY", "AUD", "CAD",
+    "CHF", "SGD", "AED", "HKD", "THB", "IDR", "MXN", "NZD",
+  ];
+  const EURO_REGIONS = [
+    "AT", "BE", "BG", "CY", "DE", "EE", "ES", "FI", "FR", "GR", "HR", "IE", "IT", "LT", "LU",
+    "LV", "MT", "NL", "PT", "SI", "SK", "AD", "MC", "SM", "VA", "ME", "XK",
+  ];
+  const REGION_CURRENCY = {
+    US: "USD", GB: "GBP", IN: "INR", JP: "JPY", CN: "CNY", AU: "AUD", CA: "CAD", CH: "CHF",
+    LI: "CHF", SG: "SGD", AE: "AED", HK: "HKD", TH: "THB", ID: "IDR", MX: "MXN", BR: "BRL",
+    ZA: "ZAR", NZ: "NZD", KR: "KRW", SA: "SAR", LK: "LKR", SE: "SEK", DK: "DKK", NO: "NOK",
+    IS: "ISK", PL: "PLN", CZ: "CZK", HU: "HUF", RO: "RON", TR: "TRY", IL: "ILS", EG: "EGP",
+    NG: "NGN", KE: "KES", MA: "MAD", QA: "QAR", KW: "KWD", BH: "BHD", OM: "OMR", JO: "JOD",
+    PK: "PKR", BD: "BDT", NP: "NPR", MY: "MYR", PH: "PHP", VN: "VND", TW: "TWD", AR: "ARS",
+    CL: "CLP", CO: "COP", PE: "PEN", UA: "UAH", PR: "USD", EC: "USD", SV: "USD", PA: "USD",
+  };
+  EURO_REGIONS.forEach((region) => {
+    REGION_CURRENCY[region] = "EUR";
   });
+  const DEFAULT_CURRENCY = "USD";
 
+  // A well-formed code that is not a metal, test, fund or accounting unit.
+  function isCurrencyShaped(code) {
+    if (typeof code !== "string" || !/^[A-Z]{3}$/.test(code) || FUND_CURRENCIES.indexOf(code) !== -1) {
+      return false;
+    }
+    return code.charAt(0) !== "X" || CIRCULATING_X_CODES.indexOf(code) !== -1;
+  }
+
+  function isListedCurrency(code) {
+    return isCurrencyShaped(code) && RETIRED_CURRENCIES.indexOf(code) === -1;
+  }
+
+  function engineCurrencyCodes() {
+    try {
+      if (typeof Intl.supportedValuesOf === "function") {
+        return Intl.supportedValuesOf("currency");
+      }
+    } catch {
+      // Fall through to the built-in list.
+    }
+    return [];
+  }
+
+  function currencyDisplayNames() {
+    try {
+      if (typeof Intl.DisplayNames === "function") {
+        return new Intl.DisplayNames(["en"], { type: "currency", fallback: "none" });
+      }
+    } catch {
+      // Names fall back to the built-in list or the code.
+    }
+    return null;
+  }
+
+  const CURRENCY_DISPLAY = currencyDisplayNames();
+
+  // English name from Intl, or null when the engine does not know the code.
+  function displayName(code) {
+    try {
+      return CURRENCY_DISPLAY ? CURRENCY_DISPLAY.of(code) || null : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function buildCurrencyNames() {
+    const codes = engineCurrencyCodes().filter(isListedCurrency).concat(Object.keys(FALLBACK_CURRENCY_NAMES));
+    const names = Object.create(null);
+    codes.forEach((code) => {
+      names[code] = displayName(code) || FALLBACK_CURRENCY_NAMES[code] || code;
+    });
+    return names;
+  }
+
+  // The picker list. Validation accepts more than this; see isSupportedCurrency.
+  const CURRENCY_NAMES = buildCurrencyNames();
+  const CURRENCY_CODES = Object.keys(CURRENCY_NAMES).sort();
+  // Minor-unit digits, filled in on first use so start-up does not build a formatter
+  // for every currency.
+  const CURRENCY_DIGITS = Object.create(null);
+  const OTHER_CURRENCY_CHECKS = new Map();
+
+  function isKnownToIntl(code) {
+    try {
+      new Intl.NumberFormat("en", { style: "currency", currency: code });
+    } catch {
+      return false;
+    }
+    // Intl formats any well-formed code, so where it can name currencies an unnamed
+    // code such as "ABC" is not a currency.
+    return CURRENCY_DISPLAY === null || displayName(code) !== null;
+  }
+
+  /**
+   * Whether a code can be a trip's currency. This does not depend on the picker list,
+   * so a trip made in another browser, or in a currency since retired, still loads.
+   * @param {*} currency
+   * @returns {boolean}
+   */
   function isSupportedCurrency(currency) {
-    return typeof currency === "string" && CURRENCY_CODES.indexOf(currency) !== -1;
+    if (!isCurrencyShaped(currency)) {
+      return false;
+    }
+    if (CURRENCY_NAMES[currency] !== undefined) {
+      return true;
+    }
+    if (!OTHER_CURRENCY_CHECKS.has(currency)) {
+      OTHER_CURRENCY_CHECKS.set(currency, isKnownToIntl(currency));
+    }
+    return OTHER_CURRENCY_CHECKS.get(currency);
+  }
+
+  /**
+   * English name of a supported currency, including ones not in the picker list.
+   * @param {string} code
+   * @returns {string} The name, or the code itself when no name is known.
+   */
+  function currencyName(code) {
+    if (CURRENCY_NAMES[code] !== undefined) {
+      return CURRENCY_NAMES[code];
+    }
+    return displayName(code) || code;
+  }
+
+  /**
+   * Largest amount in minor units for a currency, from a limit in major units.
+   * @param {string} currency
+   * @param {number} [maxMajor] - Defaults to the per-expense limit.
+   * @returns {number}
+   */
+  function maxAmountMinor(currency, maxMajor = MAX_AMOUNT_MAJOR) {
+    const digits = currencyDigits(currency);
+    return maxMajor * Math.pow(10, digits === null ? 2 : digits);
   }
 
   /**
    * Number of minor-unit digits for a supported currency.
    * @param {string} currency - ISO 4217 code.
-   * @returns {number|null} e.g. 2 for USD, 0 for JPY, null when unsupported.
+   * @returns {number|null} e.g. 2 for USD, 0 for JPY, 3 for KWD, null when unsupported.
    */
   function currencyDigits(currency) {
-    return isSupportedCurrency(currency) ? CURRENCY_DIGITS[currency] : null;
+    if (!isSupportedCurrency(currency)) {
+      return null;
+    }
+    if (CURRENCY_DIGITS[currency] === undefined) {
+      CURRENCY_DIGITS[currency] = new Intl.NumberFormat("en", {
+        style: "currency",
+        currency: currency,
+      }).resolvedOptions().maximumFractionDigits;
+    }
+    return CURRENCY_DIGITS[currency];
+  }
+
+  /**
+   * Placeholder for an amount field: "0", "0.00" or "0.000" by minor-unit digits.
+   * @param {string} currency - ISO 4217 code.
+   * @returns {string}
+   */
+  function amountPlaceholder(currency) {
+    const digits = currencyDigits(currency);
+    return digits === 0 ? "0" : "0." + "0".repeat(digits === null ? 2 : digits);
+  }
+
+  /**
+   * Codes for the currency picker: a short common group, then every supported
+   * currency sorted by English name.
+   * @returns {{common:string[],all:string[]}}
+   */
+  function currencyPickerGroups() {
+    const all = CURRENCY_CODES.slice().sort((a, b) => {
+      const byName = CURRENCY_NAMES[a].localeCompare(CURRENCY_NAMES[b], "en");
+      return byName === 0 ? a.localeCompare(b) : byName;
+    });
+    return { common: COMMON_CURRENCY_CODES.filter((code) => CURRENCY_NAMES[code] !== undefined), all: all };
+  }
+
+  function localeRegion(locale) {
+    try {
+      if (typeof Intl.Locale === "function") {
+        return new Intl.Locale(locale.replace(/_/g, "-")).maximize().region || "";
+      }
+    } catch {
+      return "";
+    }
+    const match = /^[A-Za-z]{2,3}(?:[-_][A-Za-z]{4})?[-_]([A-Za-z]{2})(?:$|[-_])/.exec(locale);
+    return match ? match[1].toUpperCase() : "";
+  }
+
+  /**
+   * Suggested currency for a new trip from a BCP 47 locale such as navigator.language.
+   * @param {string} locale - e.g. "en-IN", "de", "ja-JP".
+   * @returns {string} A code from the picker list; USD when the region is unknown.
+   */
+  function defaultCurrencyForLocale(locale) {
+    if (typeof locale !== "string" || locale === "") {
+      return DEFAULT_CURRENCY;
+    }
+    const region = localeRegion(locale);
+    const currency = Object.prototype.hasOwnProperty.call(REGION_CURRENCY, region) ? REGION_CURRENCY[region] : null;
+    return currency !== null && CURRENCY_NAMES[currency] !== undefined ? currency : DEFAULT_CURRENCY;
   }
 
   /**
@@ -77,7 +274,7 @@
    */
   function formatMoney(minor, currency) {
     const code = isSupportedCurrency(currency) ? currency : "INR";
-    const digits = CURRENCY_DIGITS[code];
+    const digits = currencyDigits(code);
     const minimum = Math.abs(minor) % Math.pow(10, digits) === 0 ? 0 : digits;
     return moneyFormatter(code, minimum, digits).format(minor / Math.pow(10, digits));
   }
@@ -193,7 +390,7 @@
     }
     const match = /^(\d+)(?:\.(\d*))?$/.exec(cleaned);
     if (!match) {
-      return "Enter a valid amount, e.g. 1200.50.";
+      return "Enter a valid amount, e.g. " + (digits === 0 ? "1200" : "1200." + "5".padEnd(digits, "0")) + ".";
     }
     const fractionPart = match[2] === undefined ? "" : match[2];
     if (fractionPart.length > digits) {
@@ -244,10 +441,10 @@
    * Parse a user-typed amount string directly into integer minor units.
    * @param {string} rawValue - User input; grouping commas and a decimal comma are accepted.
    * @param {string} [currency] - ISO 4217 code (defaults to INR).
-   * @param {number} [maxMinor] - Upper limit (defaults to MAX_AMOUNT_PAISE).
+   * @param {number} [maxMajor] - Upper limit in major units (defaults to MAX_AMOUNT_MAJOR).
    * @returns {{ok:false,message:string}|{ok:true,paise:number}}
    */
-  function parseAmount(rawValue, currency, maxMinor = MAX_AMOUNT_PAISE) {
+  function parseAmount(rawValue, currency, maxMajor = MAX_AMOUNT_MAJOR) {
     const raw = String(rawValue).trim();
     const digits = currencyDigits(currency || "INR");
     if (digits === null) {
@@ -264,6 +461,7 @@
     if (typeof formatted === "string") {
       return { ok: false, message: formatted };
     }
+    const maxMinor = maxMajor * Math.pow(10, digits);
     const paise =
       Number(formatted.integerPart) * Math.pow(10, digits) +
       Number(
@@ -461,7 +659,7 @@
     if (fields.amountPaise <= 0) {
       return false;
     }
-    if (fields.amountPaise > MAX_AMOUNT_PAISE) {
+    if (fields.amountPaise > MAX_AMOUNT_MINOR_ANY) {
       return false;
     }
     return true;
@@ -572,7 +770,18 @@
     return total;
   }
 
-  function withinSafeVolume(trip) {
+  /**
+   * Whether a trip stays inside the amount limits: every expense within the per-expense
+   * limit for the trip's currency, and the total volume a safe integer. Every change
+   * that adds or replaces an amount is checked with this before it is saved.
+   * @param {{currency?:string,expenses:{amountPaise:number}[],payments?:{amountPaise:number}[]}} trip
+   * @returns {boolean}
+   */
+  function withinTripLimits(trip) {
+    const cap = maxAmountMinor(trip.currency === undefined ? "INR" : trip.currency);
+    if (trip.expenses.some((expense) => expense.amountPaise > cap)) {
+      return false;
+    }
     return Number.isSafeInteger(tripVolume(trip));
   }
 
@@ -782,7 +991,7 @@
       nextSeq: Math.max(expenseData.nextSeq, paymentData.nextSeq, storedNextSeq),
       payments: paymentData.items,
     };
-    return withinSafeVolume(trip) ? trip : null;
+    return withinTripLimits(trip) ? trip : null;
   }
 
   /**
@@ -812,7 +1021,7 @@
     if (changes.amountPaise <= 0) {
       return null;
     }
-    if (changes.amountPaise > MAX_AMOUNT_PAISE) {
+    if (changes.amountPaise > MAX_AMOUNT_MINOR_ANY) {
       return null;
     }
     if (!isValidDateStr(changes.date)) {
@@ -886,7 +1095,8 @@
     });
     const expenses = trip.expenses.slice();
     expenses[index] = updatedExpense;
-    return Object.assign({}, trip, { expenses: expenses });
+    const updated = Object.assign({}, trip, { expenses: expenses });
+    return withinTripLimits(updated) ? updated : null;
   }
 
   /**
@@ -948,7 +1158,8 @@
       index = found;
     }
     expenses.splice(index, 0, Object.assign({}, expense));
-    return Object.assign({}, trip, { expenses: expenses });
+    const restored = Object.assign({}, trip, { expenses: expenses });
+    return withinTripLimits(restored) ? restored : null;
   }
 
   /** Trip ids are random tokens that tell a new trip apart from an older one. */
@@ -1073,7 +1284,7 @@
       payments: trip.payments.concat([validated]),
       nextSeq: Math.max(trip.nextSeq || 1, validated.seq + 1),
     });
-    return withinSafeVolume(updated) ? updated : null;
+    return withinTripLimits(updated) ? updated : null;
   }
 
   /** Replace an existing payment, validating it like a new one. */
@@ -1093,7 +1304,7 @@
     const payments = trip.payments.slice();
     payments[index] = validated;
     const updated = Object.assign({}, trip, { payments: payments });
-    return withinSafeVolume(updated) ? updated : null;
+    return withinTripLimits(updated) ? updated : null;
   }
 
   function removePayment(trip, seq) {
@@ -1152,11 +1363,18 @@
     isSupportedCurrency: isSupportedCurrency,
     isValidTripId: isValidTripId,
     CURRENCY_CODES: CURRENCY_CODES,
-    CURRENCY_DIGITS: CURRENCY_DIGITS,
+    COMMON_CURRENCY_CODES: COMMON_CURRENCY_CODES,
+    currencyDigits: currencyDigits,
+    amountPlaceholder: amountPlaceholder,
+    currencyPickerGroups: currencyPickerGroups,
+    defaultCurrencyForLocale: defaultCurrencyForLocale,
     MIN_MEMBERS: MIN_MEMBERS,
     MAX_MEMBERS: MAX_MEMBERS,
-    MAX_AMOUNT_PAISE: MAX_AMOUNT_PAISE,
-    MAX_PAYMENT_MINOR: MAX_PAYMENT_MINOR,
+    MAX_AMOUNT_MAJOR: MAX_AMOUNT_MAJOR,
+    MAX_PAYMENT_MAJOR: MAX_PAYMENT_MAJOR,
+    maxAmountMinor: maxAmountMinor,
+    currencyName: currencyName,
+    withinTripLimits: withinTripLimits,
     formatPaise: formatPaise,
     formatMoney: formatMoney,
     formatIndianDate: formatIndianDate,

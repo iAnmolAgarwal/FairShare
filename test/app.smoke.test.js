@@ -841,3 +841,115 @@ test('app smoke: the app loads when every storage call throws', () => {
   assert.equal(errors.length, 0, 'no console errors: ' + errors.join(' | '));
   dom.window.close();
 });
+
+function withLanguage(language) {
+  return {
+    beforeParse(window) {
+      Object.defineProperty(window.navigator, 'language', { value: language, configurable: true });
+    }
+  };
+}
+
+test('app smoke: the currency picker has a Common group, then every currency by name', () => {
+  const { dom, errors } = page();
+  const doc = dom.window.document;
+  const Core = dom.window.FairShareCore;
+  const select = doc.getElementById('trip-currency');
+  const groups = Array.from(select.children);
+  assert.deepEqual(groups.map((g) => g.tagName + ':' + g.label), ['OPTGROUP:Common', 'OPTGROUP:All currencies']);
+  const common = Array.from(groups[0].querySelectorAll('option'));
+  assert.equal(common[0].value, 'USD');
+  assert.equal(common[0].textContent, 'USD - US Dollar');
+  assert.ok(common.some((o) => o.value === 'INR') && common.some((o) => o.value === 'EUR'));
+  const all = Array.from(groups[1].querySelectorAll('option'));
+  assert.equal(all.length, Core.CURRENCY_CODES.length, 'every supported currency is listed');
+  assert.ok(all.some((o) => o.value === 'KWD' && o.textContent === 'KWD - Kuwaiti Dinar'));
+  assert.equal(all.some((o) => o.value === 'XAU' || o.value === 'XXX'), false);
+  const names = all.map((o) => o.textContent.slice(6));
+  assert.deepEqual(names, names.slice().sort((a, b) => a.localeCompare(b, 'en')), 'sorted by name');
+  assert.equal(errors.length, 0, 'no console errors: ' + errors.join(' | '));
+  dom.window.close();
+});
+
+test('app smoke: a new trip defaults to the currency of the browser region', () => {
+  for (const [language, currency] of [['en-IN', 'INR'], ['de-DE', 'EUR'], ['ja', 'JPY'], ['en-US', 'USD'], ['es-419', 'USD']]) {
+    const { dom, errors } = page(undefined, withLanguage(language));
+    const doc = dom.window.document;
+    assert.equal(doc.getElementById('trip-currency').value, currency, language);
+    assert.equal(doc.getElementById('expense-amount-label').textContent, 'Amount (' + currency + ')');
+    assert.equal(errors.length, 0, 'no console errors: ' + errors.join(' | '));
+    dom.window.close();
+  }
+});
+
+test('app smoke: a saved trip keeps its currency whatever the browser region', () => {
+  const { dom, errors } = page(seedTrip(), withLanguage('de-DE'));
+  assert.equal(dom.window.document.getElementById('trip-currency').value, 'INR');
+  assert.equal(errors.length, 0, 'no console errors: ' + errors.join(' | '));
+  dom.window.close();
+});
+
+test('app smoke: a KWD trip takes three-decimal amounts for expenses and payments', () => {
+  const { dom, errors } = page();
+  const doc = dom.window.document;
+  addMember(doc, 'A');
+  addMember(doc, 'B');
+  doc.getElementById('trip-name').value = 'Kuwait';
+  doc.getElementById('trip-currency').value = 'KWD';
+  doc.getElementById('create-trip').click();
+  doc.getElementById('add-expense-fab').click();
+  assert.equal(doc.getElementById('expense-amount').placeholder, '0.000');
+  doc.getElementById('expense-description').value = 'Dinner';
+  doc.getElementById('expense-amount').value = '12.345';
+  doc.getElementById('expense-payer').value = 'A';
+  doc.getElementById('expense-form').dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
+  assert.ok(doc.querySelector('.expense-row-amount').textContent.includes('12.345'), 'expense shows three decimals');
+  assert.equal(JSON.parse(dom.window.localStorage.getItem(KEY)).expenses[0].amountPaise, 12345);
+  doc.getElementById('tab-settle').click();
+  doc.getElementById('record-payment').click();
+  assert.equal(doc.getElementById('payment-amount').placeholder, '0.000');
+  assert.equal(doc.getElementById('payment-amount-label').textContent, 'Amount (KWD)');
+  assert.match(doc.getElementById('payment-amount').value, /^6\.17[23]$/, 'suggested payment prefills three decimals');
+  assert.equal(errors.length, 0, 'no console errors: ' + errors.join(' | '));
+  dom.window.close();
+});
+
+test('app smoke: a JPY trip uses a whole-number placeholder', () => {
+  const { dom, errors } = page();
+  const doc = dom.window.document;
+  doc.getElementById('trip-currency').value = 'JPY';
+  doc.getElementById('trip-currency').dispatchEvent(new dom.window.Event('change'));
+  assert.equal(doc.getElementById('expense-amount').placeholder, '0');
+  assert.equal(doc.getElementById('expense-amount-label').textContent, 'Amount (JPY)');
+  assert.equal(errors.length, 0, 'no console errors: ' + errors.join(' | '));
+  dom.window.close();
+});
+
+test('app smoke: a saved trip in a currency outside the picker list keeps it selected', () => {
+  const { dom, errors } = page(seedTrip({ currency: 'HRK' }));
+  const doc = dom.window.document;
+  const select = doc.getElementById('trip-currency');
+  assert.equal(doc.getElementById('workspace-screen').hidden, false, 'trip loads');
+  assert.equal(doc.getElementById('recovery-notice').hidden, true, 'not treated as corrupted');
+  assert.equal(select.value, 'HRK');
+  assert.equal(select.selectedOptions[0].textContent, 'HRK - Croatian Kuna');
+  assert.match(doc.getElementById('trip-summary').textContent, /HRK\s100 total/, 'amount formats');
+  doc.getElementById('add-expense-fab').click();
+  assert.equal(doc.getElementById('expense-amount-label').textContent, 'Amount (HRK)');
+  assert.equal(errors.length, 0, 'no console errors: ' + errors.join(' | '));
+  dom.window.close();
+});
+
+test('app smoke: an expense that would overflow the trip total is refused with a message', () => {
+  const nearMax = Number.MAX_SAFE_INTEGER - 10000 - 50;
+  const seed = seedTrip({ payments: [{ seq: 2, from: 'B', to: 'A', amountPaise: nearMax, date: '2026-01-06' }] });
+  const { dom, errors } = page(seed);
+  const doc = dom.window.document;
+  addExpense(doc, dom.window, { desc: 'Taxi', amount: '1', payer: 'A', participants: ['A', 'B'] });
+  const message = doc.getElementById('dialog-save-error');
+  assert.equal(message.hidden, false);
+  assert.match(message.textContent, /too large/);
+  assert.equal(JSON.parse(dom.window.localStorage.getItem(KEY)).expenses.length, 1, 'nothing saved');
+  assert.equal(errors.length, 0, 'no console errors: ' + errors.join(' | '));
+  dom.window.close();
+});

@@ -26,7 +26,8 @@ test('build writes a static dist with hashed asset URLs and a CSP meta tag', () 
       assert.ok(fs.readFileSync(path.join(outDir, file)).equals(fs.readFileSync(path.join(ROOT, file))), file + ' copied as is');
     }
     const html = fs.readFileSync(path.join(outDir, 'index.html'), 'utf8');
-    assert.equal(html.includes('?v=0'), false, 'no placeholder version left');
+    // A real hash may itself start with 0, so only a bare ?v=0 is the placeholder.
+    assert.doesNotMatch(html, /\?v=0(?![0-9a-f])/, 'no placeholder version left');
     for (const file of ASSETS) {
       const refs = html.match(new RegExp(file.replace('.', '\\.') + '\\?v=([0-9a-f]{16})', 'g')) || [];
       assert.equal(refs.length, 1, file + ' referenced once');

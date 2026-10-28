@@ -788,9 +788,8 @@
 
   function updateAmountCurrency() {
     const currency = state ? state.currency : tripCurrencySelect.value;
-    const digits = Core.CURRENCY_DIGITS[currency];
     amountLabel.textContent = "Amount (" + currency + ")";
-    amountInput.placeholder = digits === 0 ? "0" : "0.00";
+    amountInput.placeholder = Core.amountPlaceholder(currency);
   }
 
   function setDateBounds(input) {
@@ -798,31 +797,39 @@
     input.max = todayLocalStr();
   }
 
-  function renderCurrencyOptions() {
-    tripCurrencySelect.replaceChildren();
-    Core.CURRENCY_CODES.forEach((code) => {
+  function currencyOptgroup(label, codes) {
+    const group = document.createElement("optgroup");
+    group.label = label;
+    codes.forEach((code) => {
       const option = document.createElement("option");
       option.value = code;
       option.textContent = code + " - " + Core.CURRENCY_NAMES[code];
-      tripCurrencySelect.appendChild(option);
+      group.appendChild(option);
     });
-    const region = (navigator.language || "").split("-")[1];
-    const defaults = {
-      IN: "INR",
-      US: "USD",
-      GB: "GBP",
-      DE: "EUR",
-      FR: "EUR",
-      AE: "AED",
-      SG: "SGD",
-      TH: "THB",
-      JP: "JPY",
-      AU: "AUD",
-      CA: "CAD",
-      ID: "IDR",
-      LK: "LKR",
-    };
-    tripCurrencySelect.value = defaults[region] || "INR";
+    return group;
+  }
+
+  // Select a trip's currency. A valid code that is not in the list (for example a
+  // retired currency from an older trip) gets its own option instead of being replaced.
+  function selectCurrency(code) {
+    tripCurrencySelect.value = code;
+    if (tripCurrencySelect.value === code || !Core.isSupportedCurrency(code)) {
+      return;
+    }
+    const option = document.createElement("option");
+    option.value = code;
+    option.textContent = code + " - " + Core.currencyName(code);
+    tripCurrencySelect.insertBefore(option, tripCurrencySelect.firstChild);
+    tripCurrencySelect.value = code;
+  }
+
+  function renderCurrencyOptions() {
+    const groups = Core.currencyPickerGroups();
+    tripCurrencySelect.replaceChildren(
+      currencyOptgroup("Common", groups.common),
+      currencyOptgroup("All currencies", groups.all),
+    );
+    tripCurrencySelect.value = Core.defaultCurrencyForLocale(navigator.language);
     updateAmountCurrency();
   }
 
@@ -1249,8 +1256,7 @@
         select.appendChild(option);
       });
     });
-    paymentAmount.placeholder =
-      Core.CURRENCY_DIGITS[state.currency] === 0 ? "0" : "0.00";
+    paymentAmount.placeholder = Core.amountPlaceholder(state.currency);
     document.getElementById("payment-amount-label").textContent =
       "Amount (" + state.currency + ")";
     setDateBounds(paymentDate);
@@ -1423,7 +1429,7 @@
   function savePayment(event) {
     event.preventDefault();
     clearPaymentErrors();
-    const amount = parseAmount(paymentAmount.value, state.currency, Core.MAX_PAYMENT_MINOR);
+    const amount = parseAmount(paymentAmount.value, state.currency, Core.MAX_PAYMENT_MAJOR);
     const problem = readPaymentProblem(amount);
     if (problem) {
       showPaymentError(problem.message, problem.field);
@@ -1455,8 +1461,8 @@
   }
 
   function paiseToInputValue(paise, currency) {
-    const known = Object.prototype.hasOwnProperty.call(Core.CURRENCY_DIGITS, currency);
-    const digits = known ? Core.CURRENCY_DIGITS[currency] : 2;
+    const known = Core.currencyDigits(currency);
+    const digits = known === null ? 2 : known;
     const factor = Math.pow(10, digits);
     const whole = Math.floor(paise / factor);
     const fraction = paise % factor;
@@ -1701,6 +1707,10 @@
       expenses: state.expenses.concat([newExpense]),
       nextSeq: nextSeq,
     });
+    if (!Core.withinTripLimits(newState)) {
+      showDialogSaveError("This expense would make the trip total too large to track. Start a new trip for more expenses.");
+      return;
+    }
     if (!saveState(newState)) {
       return;
     }
@@ -2166,7 +2176,7 @@
   const loaded = readStoredTrip();
   if (loaded.trip) {
     state = loaded.trip;
-    tripCurrencySelect.value = state.currency;
+    selectCurrency(state.currency);
     workspaceScreen.hidden = false;
     setupScreen.hidden = true;
     exitEditMode();

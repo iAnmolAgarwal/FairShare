@@ -301,7 +301,7 @@ test('updateExpense rejects invalid changes without modifying the trip', () => {
     { description: 'x', amountPaise: 0, payer: 'A', date: '2026-02-01', participants: ['A'] },
     { description: 'x', amountPaise: -100, payer: 'A', date: '2026-02-01', participants: ['A'] },
     { description: 'x', amountPaise: 10.5, payer: 'A', date: '2026-02-01', participants: ['A'] },
-    { description: 'x', amountPaise: 2000000000, payer: 'A', date: '2026-02-01', participants: ['A'] },
+    { description: 'x', amountPaise: 100000000001, payer: 'A', date: '2026-02-01', participants: ['A'] },
     { description: 'x', amountPaise: 100, payer: 'Z', date: '2026-02-01', participants: ['A'] },
     { description: 'x', amountPaise: 100, payer: 'A', date: '2026-13-01', participants: ['A'] },
     { description: 'x', amountPaise: 100, payer: 'A', date: '2026-02-01', participants: [] },
@@ -601,8 +601,8 @@ test('parseAmount rejects ambiguous comma input instead of inflating it', () => 
 });
 
 test('parseAmount accepts a larger explicit limit for payments', () => {
-  assert.equal(Core.parseAmount('30000000', 'INR').ok, false);
-  assert.equal(Core.parseAmount('30000000', 'INR', Core.MAX_PAYMENT_MINOR).paise, 3000000000);
+  assert.equal(Core.parseAmount('3000000000', 'INR').ok, false);
+  assert.equal(Core.parseAmount('3000000000', 'INR', Core.MAX_PAYMENT_MAJOR).paise, 300000000000);
 });
 
 test('migrateTrip keeps seq 0, a larger stored nextSeq, and never reuses a payment seq', () => {
@@ -647,7 +647,7 @@ test('parseAmount rejects a three-digit leading group in Indian grouping', () =>
 
 test('stored payments above the typed limit still load, and their settlements can be recorded', () => {
   const pay = (seq, amountPaise) => ({ seq, from: 'a', to: 'b', amountPaise, date: '2026-01-01' });
-  const one = Core.migrateTrip({ name: 'S', members: ['a', 'b'], expenses: [], payments: [pay(1, Core.MAX_PAYMENT_MINOR + 1)] });
+  const one = Core.migrateTrip({ name: 'S', members: ['a', 'b'], expenses: [], payments: [pay(1, Core.maxAmountMinor('INR', Core.MAX_PAYMENT_MAJOR) + 1)] });
   assert.ok(one, 'a large stored payment is not treated as corrupt');
   const two = Core.migrateTrip({ name: 'S', members: ['a', 'b'], expenses: [], payments: [pay(1, 1e13), pay(2, 1e13)] });
   const settlement = Core.computeSettlements(two)[0];
@@ -665,4 +665,195 @@ test('sequence numbers are bounded so the next one is always exact', () => {
     expenses: [{ description: 'x', amountPaise: 1, payer: 'a', date: '2026-01-01', participants: ['a'] }],
     payments: [{ seq: 2147483647, from: 'a', to: 'b', amountPaise: 1, date: '2026-01-01' }] });
   assert.equal(trip, null, 'no seq can be allocated past the limit');
+});
+
+const OLD_CURRENCIES = ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD', 'THB', 'JPY', 'AUD', 'CAD', 'IDR', 'LKR'];
+
+function loadCoreWith(intl) {
+  const vm = require('vm');
+  const fs = require('fs');
+  const path = require('path');
+  const window = {};
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '..', 'core.js'), 'utf8'), { window, Intl: intl });
+  return window.FairShareCore;
+}
+
+test('the currency list covers ISO currencies, keeps the original 12 and skips non-circulating codes', () => {
+  assert.ok(Core.CURRENCY_CODES.length > 100, 'got ' + Core.CURRENCY_CODES.length);
+  for (const code of OLD_CURRENCIES) {
+    assert.ok(Core.isSupportedCurrency(code), code + ' stays supported');
+  }
+  for (const code of ['XAU', 'XAG', 'XPT', 'XPD', 'XTS', 'XXX', 'XDR', 'XSU', 'XUA', 'XBA', 'XBD', 'CHE', 'USN']) {
+    assert.equal(Core.isSupportedCurrency(code), false, code + ' is excluded');
+  }
+  for (const code of ['HRK', 'ZWL', 'BGN']) {
+    assert.equal(Core.CURRENCY_CODES.includes(code), false, code + ' (retired) is not offered');
+  }
+  for (const code of ['XAF', 'XOF', 'XCD', 'XPF', 'CNY', 'KWD', 'BRL', 'ZAR']) {
+    assert.ok(Core.isSupportedCurrency(code), code + ' is supported');
+  }
+  assert.deepEqual(Core.CURRENCY_CODES, Core.CURRENCY_CODES.slice().sort(), 'codes are sorted');
+  assert.equal(new Set(Core.CURRENCY_CODES).size, Core.CURRENCY_CODES.length, 'no duplicates');
+  for (const code of Core.CURRENCY_CODES) {
+    assert.match(code, /^[A-Z]{3}$/);
+    assert.equal(typeof Core.CURRENCY_NAMES[code], 'string');
+    assert.ok(Core.CURRENCY_NAMES[code].length > 0, code + ' has a name');
+  }
+  assert.match(Core.CURRENCY_NAMES.KWD, /Kuwaiti dinar/i);
+});
+
+test('every listed currency loads in a saved trip and formats', () => {
+  for (const code of Core.CURRENCY_CODES) {
+    assert.ok(migrateTrip({ name: 'T', members: ['a', 'b'], expenses: [], currency: code }), code);
+    assert.ok([0, 2, 3].includes(Core.currencyDigits(code)), code + ' digits ' + Core.currencyDigits(code));
+    assert.equal(typeof Core.formatMoney(12345, code), 'string');
+  }
+  assert.equal(migrateTrip({ name: 'T', members: ['a', 'b'], expenses: [], currency: 'XAU' }), null);
+});
+
+test('without Intl.supportedValuesOf or DisplayNames the original 12 currencies are used', () => {
+  const legacy = loadCoreWith({ NumberFormat: Intl.NumberFormat });
+  assert.deepEqual(Array.from(legacy.CURRENCY_CODES), OLD_CURRENCIES.slice().sort());
+  assert.equal(legacy.CURRENCY_NAMES.INR, 'Indian rupee');
+  assert.equal(legacy.currencyDigits('JPY'), 0);
+  assert.deepEqual(Array.from(legacy.currencyPickerGroups().common), ['USD', 'EUR', 'GBP', 'INR', 'JPY', 'AUD', 'CAD', 'SGD', 'AED', 'THB', 'IDR']);
+  assert.equal(legacy.defaultCurrencyForLocale('en-GB'), 'GBP', 'explicit region is read without Intl.Locale');
+  assert.equal(legacy.defaultCurrencyForLocale('pt-BR'), 'USD', 'unsupported mapped currency falls back to USD');
+  assert.equal(legacy.defaultCurrencyForLocale('ja'), 'USD', 'no region without Intl.Locale');
+});
+
+test('currency picker groups: a common group, then every currency sorted by name', () => {
+  const groups = Core.currencyPickerGroups();
+  assert.equal(groups.common[0], 'USD');
+  assert.ok(groups.common.length >= 12 && groups.common.length <= 20);
+  for (const code of groups.common) {
+    assert.ok(Core.isSupportedCurrency(code), code);
+  }
+  assert.deepEqual(groups.all.slice().sort(), Core.CURRENCY_CODES);
+  for (let i = 1; i < groups.all.length; i += 1) {
+    const prev = Core.CURRENCY_NAMES[groups.all[i - 1]];
+    const next = Core.CURRENCY_NAMES[groups.all[i]];
+    assert.ok(prev.localeCompare(next, 'en') <= 0, prev + ' before ' + next);
+  }
+});
+
+test('defaultCurrencyForLocale maps the locale region to its currency', () => {
+  const cases = {
+    'en-US': 'USD', 'en-IN': 'INR', 'hi': 'INR', 'en-GB': 'GBP', 'de-DE': 'EUR', 'de': 'EUR', 'fr-FR': 'EUR',
+    'es-ES': 'EUR', 'it': 'EUR', 'nl-NL': 'EUR', 'fr-CA': 'CAD', 'de-CH': 'CHF', 'ja': 'JPY', 'ja-JP': 'JPY',
+    'zh-CN': 'CNY', 'zh-HK': 'HKD', 'en-AU': 'AUD', 'en-SG': 'SGD', 'ar-AE': 'AED', 'th': 'THB', 'id': 'IDR',
+    'es-MX': 'MXN', 'pt-BR': 'BRL', 'en-ZA': 'ZAR', 'en-NZ': 'NZD', 'ko': 'KRW', 'ar-SA': 'SAR', 'si-LK': 'LKR',
+    'sv-SE': 'SEK', 'pl': 'PLN', 'en_GB': 'GBP',
+  };
+  for (const [locale, currency] of Object.entries(cases)) {
+    assert.equal(Core.defaultCurrencyForLocale(locale), currency, locale);
+  }
+  for (const locale of ['', 'es-419', 'not a locale', undefined, null, 42]) {
+    assert.equal(Core.defaultCurrencyForLocale(locale), 'USD', String(locale));
+  }
+});
+
+test('three-decimal currencies parse, validate and format with three minor digits', () => {
+  assert.equal(Core.currencyDigits('KWD'), 3);
+  assert.equal(Core.currencyDigits('BHD'), 3);
+  assert.deepEqual(parseAmount('12.345', 'KWD'), { ok: true, paise: 12345 });
+  assert.deepEqual(parseAmount('12.3', 'KWD'), { ok: true, paise: 12300 });
+  assert.deepEqual(parseAmount('7', 'BHD'), { ok: true, paise: 7000 });
+  assert.deepEqual(parseAmount('1,250.500', 'BHD'), { ok: true, paise: 1250500 });
+  assert.deepEqual(parseAmount('1,5', 'KWD'), { ok: true, paise: 1500 }, 'decimal comma');
+  assert.equal(parseAmount('12.3456', 'KWD').message, 'Use at most 3 decimal places.');
+  assert.equal(parseAmount('abc', 'KWD').message, 'Enter a valid amount, e.g. 1200.500.');
+  assert.equal(parseAmount('0.000', 'KWD').ok, false);
+  const plain = (s) => s.replace(/\s/g, ' ');
+  assert.equal(plain(Core.formatMoney(12345, 'KWD')), 'KWD 12.345');
+  assert.equal(plain(Core.formatMoney(12000, 'KWD')), 'KWD 12');
+  assert.equal(plain(Core.formatMoney(1500, 'BHD')), 'BHD 1.500');
+});
+
+test('JPY, USD and EUR amounts keep their own minor digits', () => {
+  assert.deepEqual(parseAmount('1,500', 'JPY'), { ok: true, paise: 1500 });
+  assert.equal(parseAmount('12.5', 'JPY').message, 'Enter a whole amount; this currency has no decimals.');
+  assert.equal(parseAmount('abc', 'JPY').message, 'Enter a valid amount, e.g. 1200.');
+  assert.deepEqual(parseAmount('19.99', 'USD'), { ok: true, paise: 1999 });
+  assert.equal(parseAmount('19.999', 'USD').message, 'Use at most 2 decimal places.');
+  assert.deepEqual(parseAmount('19,99', 'EUR'), { ok: true, paise: 1999 });
+  assert.deepEqual(parseAmount('1234,5', 'EUR'), { ok: true, paise: 123450 });
+  assert.equal(Core.formatMoney(1999, 'EUR'), '€19.99');
+  assert.equal(Core.formatMoney(1500, 'JPY'), '¥1,500');
+});
+
+test('amountPlaceholder follows the currency minor digits', () => {
+  assert.equal(Core.amountPlaceholder('JPY'), '0');
+  assert.equal(Core.amountPlaceholder('USD'), '0.00');
+  assert.equal(Core.amountPlaceholder('KWD'), '0.000');
+  assert.equal(Core.amountPlaceholder('nope'), '0.00');
+});
+
+test('currency validation does not depend on the picker list', () => {
+  const hrk = migrateTrip({ name: 'Zagreb 2019', members: ['a', 'b'], currency: 'HRK',
+    expenses: [{ description: 'x', amountPaise: 1234, payer: 'a', date: '2019-06-01', participants: ['a', 'b'] }] });
+  assert.ok(hrk, 'a trip in a retired currency still loads');
+  assert.equal(hrk.currency, 'HRK');
+  assert.equal(Core.CURRENCY_CODES.includes('HRK'), false);
+  assert.equal(Core.currencyDigits('HRK'), 2);
+  assert.match(Core.formatMoney(1234, 'HRK'), /12\.34/);
+  assert.equal(Core.currencyName('HRK'), 'Croatian Kuna');
+  assert.deepEqual(parseAmount('12.34', 'HRK'), { ok: true, paise: 1234 });
+  for (const code of ['ABC', 'usd', 'Usd', 'US', 'USDX', 'XAU', 'XXX', 'XTS', 'CHE', '', null, 'constructor', '__proto__']) {
+    assert.equal(Core.isSupportedCurrency(code), false, String(code));
+    assert.equal(migrateTrip({ name: 'T', members: ['a', 'b'], expenses: [], currency: code }), null, String(code));
+  }
+});
+
+test('without Intl.DisplayNames any well-formed code Intl can format is accepted, except non-currencies', () => {
+  const legacy = loadCoreWith({ NumberFormat: Intl.NumberFormat });
+  assert.equal(legacy.isSupportedCurrency('BRL'), true);
+  assert.equal(legacy.isSupportedCurrency('XAU'), false);
+  assert.equal(legacy.isSupportedCurrency('usd'), false);
+  assert.equal(legacy.currencyName('BRL'), 'BRL');
+});
+
+test('the per-expense limit is a billion major units in every currency', () => {
+  assert.equal(Core.maxAmountMinor('JPY'), 1e9);
+  assert.equal(Core.maxAmountMinor('USD'), 1e11);
+  assert.equal(Core.maxAmountMinor('KWD'), 1e12);
+  assert.deepEqual(parseAmount('1,000,000,000', 'JPY'), { ok: true, paise: 1e9 });
+  assert.equal(parseAmount('1000000001', 'JPY').message, 'Amount cannot exceed ¥1,000,000,000.');
+  assert.deepEqual(parseAmount('1000000000.00', 'USD'), { ok: true, paise: 1e11 });
+  assert.equal(parseAmount('1000000000.01', 'USD').message, 'Amount cannot exceed $1,000,000,000.');
+  assert.deepEqual(parseAmount('1000000000', 'KWD'), { ok: true, paise: 1e12 });
+  assert.match(parseAmount('1000000000.001', 'KWD').message, /^Amount cannot exceed KWD\s1,000,000,000\.$/);
+  for (const code of Core.CURRENCY_CODES) {
+    assert.ok(Number.isSafeInteger(Core.maxAmountMinor(code, Core.MAX_PAYMENT_MAJOR)), code + ' payment limit is a safe integer');
+  }
+});
+
+test('stored expenses are held to the limit of the trip currency', () => {
+  const trip = (currency, amountPaise) => migrateTrip({ name: 'T', members: ['a', 'b'], currency,
+    expenses: [{ description: 'x', amountPaise, payer: 'a', date: '2026-01-01', participants: ['a', 'b'] }] });
+  assert.ok(trip('JPY', 1e9));
+  assert.equal(trip('JPY', 1e9 + 1), null);
+  assert.ok(trip('USD', 1e9 + 1), 'the same number of minor units is fine in USD');
+  assert.ok(trip('KWD', 1e12));
+  assert.equal(trip('KWD', 1e12 + 1), null);
+  const jpy = trip('JPY', 100);
+  const change = { description: 'x', payer: 'a', date: '2026-01-01', participants: ['a', 'b'] };
+  assert.equal(Core.updateExpense(jpy, 1, Object.assign({ amountPaise: 1e9 + 1 }, change)), null);
+  assert.ok(Core.updateExpense(jpy, 1, Object.assign({ amountPaise: 1e9 }, change)));
+});
+
+test('no change can push a trip total past a safe integer', () => {
+  const big = Number.MAX_SAFE_INTEGER - 1000;
+  const trip = migrateTrip({ name: 'T', members: ['a', 'b'], currency: 'USD', expenses: [],
+    payments: [{ seq: 1, from: 'a', to: 'b', amountPaise: big, date: '2026-01-01' }] });
+  assert.ok(trip);
+  const expense = { seq: 5, description: 'x', amountPaise: 2000, payer: 'a', date: '2026-01-01', participants: ['a', 'b'] };
+  assert.equal(Core.withinTripLimits(Object.assign({}, trip, { expenses: [expense] })), false, 'adding an expense');
+  assert.equal(Core.restoreExpense(trip, expense), null, 'restoring an expense');
+  assert.equal(Core.addPayment(trip, { seq: 2, from: 'b', to: 'a', amountPaise: 2000, date: '2026-01-01' }), null, 'adding a payment');
+  assert.ok(Core.addPayment(trip, { seq: 2, from: 'b', to: 'a', amountPaise: 1000, date: '2026-01-01' }), 'up to the bound is fine');
+  const withExpense = Core.restoreExpense(trip, Object.assign({}, expense, { amountPaise: 500 }));
+  assert.ok(withExpense);
+  assert.equal(Core.updateExpense(withExpense, 5, Object.assign({}, expense, { amountPaise: 2000 })), null, 'growing an expense');
+  assert.equal(Core.updatePayment(trip, 1, { from: 'a', to: 'b', amountPaise: Number.MAX_SAFE_INTEGER + 1, date: '2026-01-01' }), null);
 });

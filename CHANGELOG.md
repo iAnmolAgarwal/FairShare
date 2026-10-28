@@ -5,6 +5,44 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-10-28
+
+### Added
+
+- Every circulating ISO 4217 currency, listed by the browser through
+  `Intl.supportedValuesOf("currency")` with English names from `Intl.DisplayNames`.
+  Precious metals, test, fund and accounting codes (XAU, XXX, XDR, CHE and similar) and
+  replaced currencies are left out; real X-codes such as XAF, XOF, XCD and XPF stay.
+  Browsers without that API keep the original 12 currencies, which are always supported,
+  so existing saved trips load unchanged.
+- The currency picker is still a native select, now grouped: "Common" (USD, EUR, GBP, INR,
+  JPY and others) first, then "All currencies" sorted by name.
+- A new trip defaults to the currency of the browser's region (for example en-GB to GBP,
+  de to EUR, ja to JPY), falling back to USD. The rule lives in `defaultCurrencyForLocale`
+  in core.js and is tested.
+
+### Changed
+
+- Amount fields handle currencies with three minor digits (KWD, BHD, OMR, JOD, TND): the
+  placeholder reads 0.000, entry and validation allow three decimals, and amounts show
+  them. Zero-decimal currencies such as JPY keep a 0 placeholder.
+- Currency-neutral wording: the amount labels no longer start as "Amount (INR)", the
+  trip and member name examples are no longer Indian-specific, and the "valid amount"
+  example matches the trip currency's decimals. The Goa sample trip keeps its rupee amounts.
+- Checking a trip's currency no longer depends on the picker list. Any currency Intl
+  knows by name is accepted, except metals, test, fund and accounting codes. A trip exported
+  from another browser, or saved in a currency that has since been retired (such as HRK),
+  still loads, and the picker shows that currency as selected instead of switching it.
+- Amount limits are in major units, so they are the same in every currency: up to
+  1,000,000,000 per expense (for example ¥1,000,000,000, $1,000,000,000 or KWD
+  1,000,000,000) and 1,000 times that for a payment typed by hand. Before, the expense
+  limit was 1,000,000,000 minor units, only ₹10,000,000 or $10,000,000.
+- Adding, editing or restoring an expense is refused when it would push the trip's total
+  past what can be added up exactly, with a message instead of a wrong total. Payments
+  already had this check.
+- Minor-unit digits are worked out when a currency is first used rather than for every
+  currency at start-up.
+
 ## [1.0.0] - 2026-10-28
 
 First public release.
