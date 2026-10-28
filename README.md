@@ -9,7 +9,7 @@
   <a href="https://fairshare-trips.vercel.app"><img src="https://img.shields.io/badge/live-fairshare--trips.vercel.app-4d7c0f" alt="Live at fairshare-trips.vercel.app"></a>
   <img src="https://img.shields.io/badge/AI%20Innovation%20Arena-top%2010%20runner--up-2563EB" alt="One of the 10 runners-up in HackerEarth's AI Innovation Arena">
   <img src="https://img.shields.io/badge/arena%20evaluation-100%2F100-111827" alt="Scored 100 out of 100 on the arena's security, code quality, correctness, performance and accessibility evaluation">
-  <img src="https://img.shields.io/badge/tests-140%20passing-4B5563" alt="140 tests pass">
+  <img src="https://img.shields.io/badge/tests-163%20passing-4B5563" alt="163 tests pass">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-9CA3AF" alt="License: MIT"></a>
 </p>
 
@@ -31,25 +31,27 @@ Nothing you type leaves the page. Close the tab and come back later: the trip is
 
 Group trips run on one person's card at a time. Someone books the stay, someone else pays for dinner, a third person covers fuel, and by day three nobody knows who is ahead. The usual fixes are a spreadsheet that one person maintains, or an app that wants everyone to sign up before you can split a pizza.
 
-FairShare is the version you can open in a browser tab on the beach. One person keeps the trip on their phone, the maths is exact to the last paisa, and at the end it hands you a short list of who pays whom.
+FairShare is the version you can open in a browser tab on the beach. One person keeps the trip on their phone, in whatever currency the trip is in, and at the end it hands you a short list of who pays whom.
 
 ## What you get
 
 <p align="center">
-  <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/screen-setup-dark.png"><img src="docs/images/screen-setup-light.png" width="160" alt="Trip setup: Goa 2026 in Indian rupees, three people added and the fourth being typed"></picture>
-  <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/screen-expenses-dark.png"><img src="docs/images/screen-expenses-light.png" width="160" alt="The expense list for a Goa trip, newest first"></picture>
-  <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/screen-add-expense-dark.png"><img src="docs/images/screen-add-expense-light.png" width="160" alt="The add-expense sheet with amount, payer and who it was for"></picture>
-  <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/screen-balances-dark.png"><img src="docs/images/screen-balances-light.png" width="160" alt="Balances: who gets back money and who owes"></picture>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/gallery-dark.png">
+    <img src="docs/images/gallery-light.png" width="100%" alt="Five phone screens side by side: starting a trip, the expense list, adding an expense, balances, and the settle-up plan">
+  </picture>
 </p>
 <p align="center">
-  <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/screen-settle-dark.png"><img src="docs/images/screen-settle-light.png" width="160" alt="The settle-up plan: two payments left after Kabir paid Meera"></picture>
-  <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/desktop-dashboard-dark.png"><img src="docs/images/desktop-dashboard-light.png" width="400" alt="The desktop dashboard with expenses, balances and the settle-up plan side by side"></picture>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/desktop-dark.png">
+    <img src="docs/images/desktop-light.png" width="100%" alt="The desktop dashboard with expenses, balances and the settle-up plan on one screen">
+  </picture>
 </p>
 <p align="center"><sub>Screenshots use demo data. Aarav, Diya, Kabir and Meera are not real people, and did not actually go parasailing.</sub></p>
 
 - trips of 2 to 10 people, with names checked for blanks and duplicates (ignoring case)
 - expenses split equally between everyone or only the people who were there
-- 12 currencies: INR, USD, EUR, GBP, AED, SGD, THB, JPY, AUD, CAD, IDR and LKR, each with its own decimal places (yen has none)
+- any currency: every ISO 4217 currency your browser knows, the common ones listed first and a default picked from your region, each with its own decimal places (none for the yen, three for the Kuwaiti dinar)
 - live balances in plain words: **gets back**, **owes** or **settled**
 - a settle-up plan of at most one payment fewer than the number of people; tap or swipe a payment to mark it paid, with **Undo**
 - ad-hoc payments between friends, which move balances without inflating the trip total
@@ -62,13 +64,13 @@ FairShare is the version you can open in a browser tab on the beach. One person 
 
 ## How it works
 
-Every amount is stored as an integer number of minor units (paise for rupees, cents for dollars), so there is no floating-point money anywhere. A member's balance is what they paid minus their share of the expenses they were part of, adjusted for payments they recorded.
+Every amount is stored as an integer number of minor units (cents for dollars, pence for pounds, whole yen for yen), so there is no floating-point money anywhere. A member's balance is what they paid minus their share of the expenses they were part of, adjusted for payments they recorded.
 
-**Why the leftover paisa goes to the first person.** ₹100 between three people is ₹33.33 each with one paisa left over. FairShare gives that paisa to the first participant in trip order, so the shares are ₹33.34, ₹33.33 and ₹33.33 and the balances always add up to exactly zero.
+**Why the leftover cent goes to the first person.** $100 between three people is $33.33 each with one cent left over. FairShare gives that cent to the first participant in trip order, so the shares are $33.34, $33.33 and $33.33 and the balances always add up to exactly zero. The same rule works in any currency, whatever its smallest unit is.
 
 **Why the plan is short.** The settle-up pass lines up who owes, largest debt first, and who is owed, largest credit first, then pays the head of one list to the head of the other with the smaller of the two amounts. Each payment clears at least one person, so a trip of *n* people needs at most *n* − 1 payments.
 
-A worked example, with the demo trip from the screenshots before anyone has paid anyone back:
+A worked example, using the demo trip from the screenshots before anyone has paid anyone back. That trip happens to be a Goa trip in rupees; the maths is the same in any currency.
 
 | Expense | Paid by | Split between | Amount |
 |---|---|---|---:|
@@ -113,7 +115,7 @@ For local development, [`server.js`](server.js) is a small static server that on
 
 ## Quality
 
-- 140 tests on Node's built-in runner: unit tests for the money logic, jsdom smoke tests for the UI, and integration tests for the dev server
+- 163 tests on Node's built-in runner: unit tests for the money logic, jsdom smoke tests for the UI, and integration tests for the dev server
 - ESLint with zero warnings, run in CI on Node 22 and 24 along with the tests and the build
 - 100/100 on the AI Innovation Arena's automated evaluation (security, code quality, correctness, performance, accessibility)
 - Lighthouse 100 for accessibility, best practices and SEO on mobile and desktop
