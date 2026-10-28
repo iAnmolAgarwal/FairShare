@@ -128,6 +128,13 @@
   const settleEmptyTitle = document.getElementById("settle-empty-title");
   const settleEmptyText = document.getElementById("settle-empty-text");
   const settleDialogPair = document.getElementById("settle-dialog-pair");
+  const settleSquareArt = document.getElementById("settle-square-art");
+  const settleSquareStats = document.getElementById("settle-square-stats");
+  const balancesSquareArt = document.getElementById("balances-square-art");
+  const tripHeader = document.querySelector(".trip-header");
+  const tripMini = document.getElementById("trip-mini");
+  const tripMiniName = document.getElementById("trip-mini-name");
+  const tripMiniTotal = document.getElementById("trip-mini-total");
   const amountPrefix = document.getElementById("expense-amount-prefix");
   const splitPreview = document.getElementById("split-preview");
   const tripOptionsBtn = document.getElementById("trip-options");
@@ -258,6 +265,8 @@
     amountError, payerSelect, payerError, dateInput, dateError,
     participantListEl, participantsError, participantsField, participantsToggle,
     expenseFormTitle, saveExpenseBtn, deleteExpenseDialogBtn, dialogSaveError,
+    settleSquareArt, settleSquareStats, balancesSquareArt, tripHeader, tripMini,
+    tripMiniName, tripMiniTotal,
     expenseListEl, expensesEmptyEl, exportTripBtn, newTripBtn,
     recordPaymentMenu, confirmExportStart, confirmStartNew, confirmCancel,
     appToastLive, importTripBtn, importTripSetupBtn, importFileInput, importError,
@@ -329,7 +338,8 @@
     appToastUndo.hidden = !undo;
     appToast.hidden = false;
     appToastText.textContent = message;
-    announce(undo ? message + ". Undo available." : message);
+    // "Fado night deleted." + "Undo available." must not read as "deleted.."
+    announce(undo ? message.replace(/[.\s]+$/, "") + ". Undo available." : message);
     if (undo) {
       appToastUndo.focus();
     }
@@ -649,7 +659,7 @@
     remove.addEventListener("click", () => {
       removeMember(index);
     });
-    item.appendChild(createAvatar(name));
+    item.appendChild(createAvatar(name, setupMembers));
     item.appendChild(label);
     item.appendChild(remove);
     return item;
@@ -1071,6 +1081,9 @@
     const allSquare = hasActivity && largest === 0;
     balancesEmpty.hidden = largest > 0;
     balancesEmpty.classList.toggle("is-square", allSquare);
+    if (allSquare) {
+      buildSquareArt(balancesSquareArt, state.members, true);
+    }
     balancesEmptyTitle.textContent = allSquare ? "Everyone's square." : "No balances yet";
     balancesEmptyText.textContent = allSquare
       ? "Nobody owes anything right now."
@@ -1145,7 +1158,14 @@
     settleEmpty.classList.toggle("is-settled", hasActivity);
     // Nothing to summarise until something has been spent or paid.
     copySettleBtn.hidden = !hasActivity;
+    if (settlements.length === 0) {
+      buildSquareArt(settleSquareArt, state.members, hasActivity);
+    }
+    // Settled: the sentence stays for screen readers, the stats row shows it.
+    settleEmptyText.classList.toggle("sr-only", hasActivity);
+    settleSquareStats.hidden = !hasActivity;
     if (hasActivity) {
+      renderSquareStats(payments);
       const count = state.expenses.length;
       settleEmptyTitle.textContent = "Everyone's square.";
       settleEmptyText.textContent =
@@ -1170,58 +1190,162 @@
     return el;
   }
 
-  function shortName(name) {
-    return name.length > 10 ? name.slice(0, 9) + "\u2026" : name;
+  function shortName(name, max) {
+    const limit = max || 10;
+    return name.length > limit ? name.slice(0, limit - 1) + "…" : name;
   }
 
-  // A picture of the plan: who pays on the left, who gets paid on the right, one
-  // arc per payment, thicker for larger amounts. The list below says the same in words.
+  // A picture of the plan. One row per payment on the left (payer and amount),
+  // an arc in the payer's colour to the person paid on the right. Rows are grouped
+  // by who gets paid and each arc docks at its own port, so arcs never cross or
+  // pile into one knot. The list below says the same in words.
+  const FLOW_WIDTH = 340;
+
   function renderSettleFlow(settlements) {
     settleFlow.replaceChildren();
     settleFlow.hidden = settlements.length === 0;
     if (settlements.length === 0) {
       return;
     }
-    const unique = (names) => names.filter((name, i) => names.indexOf(name) === i);
-    const payers = unique(settlements.map((s) => s.from));
-    const payees = unique(settlements.map((s) => s.to));
-    const rows = Math.max(payers.length, payees.length);
-    const rowHeight = 40;
-    const pad = 22;
-    const height = pad * 2 + (rows - 1) * rowHeight;
-    const yFor = (index, count) => pad + ((rows - count) * rowHeight) / 2 + index * rowHeight;
+    const payees = settlements
+      .map((s) => s.to)
+      .filter((name, i, names) => names.indexOf(name) === i);
+    const rowHeight = settlements.length > 6 ? 36 : 42;
+    const portGap = 9;
+    const groupGap = 14;
     const largest = Math.max.apply(null, settlements.map((s) => s.amountPaise));
-    const svg = svgEl("svg", { viewBox: "0 0 320 " + height, focusable: "false", class: "settle-flow-svg" });
-    settlements.forEach((s, i) => {
-      const y1 = yFor(payers.indexOf(s.from), payers.length);
-      const y2 = yFor(payees.indexOf(s.to), payees.length);
-      const arc = svgEl("path", {
-        d: "M114 " + y1 + "C162 " + y1 + " 158 " + y2 + " 206 " + y2,
-        "stroke-width": (1.25 + (3.5 * s.amountPaise) / largest).toFixed(2),
-        pathLength: "1",
-        class: "flow-arc flow-arc-" + Math.min(i, 5),
+    const arcs = svgEl("g", { class: "flow-arcs" });
+    const nodes = svgEl("g", { class: "flow-nodes" });
+    let top = 6;
+    let order = 0;
+    payees.forEach((to) => {
+      const group = settlements.filter((s) => s.to === to);
+      const capHeight = 28 + (group.length - 1) * portGap;
+      const groupHeight = Math.max(group.length * rowHeight, capHeight + 40);
+      const rowsTop = top + (groupHeight - group.length * rowHeight) / 2;
+      const capTop = top + (groupHeight - capHeight - 34) / 2;
+      group.forEach((s, i) => {
+        const y = rowsTop + rowHeight * i + rowHeight / 2;
+        const port = capTop + 14 + i * portGap;
+        const tone = memberTone(s.from);
+        const amountText = formatMoney(s.amountPaise, state.currency);
+        const payer = svgEl("g", { class: "flow-payer " + tone });
+        payer.appendChild(svgEl("circle", { cx: 15, cy: y, r: 13 }));
+        const initial = svgEl("text", { x: 15, y: y + 4.5, "text-anchor": "middle", class: "flow-initial" });
+        initial.textContent = s.from.charAt(0).toUpperCase();
+        payer.appendChild(initial);
+        const name = svgEl("text", { x: 36, y: y + 4.5, class: "flow-name" });
+        name.textContent = shortName(s.from, amountText.length > 9 ? 7 : 10);
+        payer.appendChild(name);
+        const amount = svgEl("text", { x: 172, y: y + 4.5, "text-anchor": "end", class: "flow-amount" });
+        amount.textContent = amountText;
+        payer.appendChild(amount);
+        nodes.appendChild(payer);
+        arcs.appendChild(svgEl("path", {
+          d: "M182 " + y + "C226 " + y + " 222 " + port + " 262 " + port,
+          "stroke-width": (2 + (3 * s.amountPaise) / largest).toFixed(2),
+          pathLength: "1",
+          "data-from": s.from,
+          "data-to": s.to,
+          class: "flow-arc flow-arc-" + Math.min(order, 8) + " " + tone,
+        }));
+        arcs.appendChild(svgEl("circle", { cx: 182, cy: y, r: 3, class: "flow-port " + tone }));
+        order += 1;
       });
-      svg.appendChild(arc);
+      const received = group.reduce((sum, s) => sum + s.amountPaise, 0);
+      const payee = svgEl("g", { class: "flow-payee " + memberTone(to) });
+      payee.appendChild(svgEl("rect", { x: 262, y: capTop, width: 28, height: capHeight, rx: 14 }));
+      const initial = svgEl("text", {
+        x: 276, y: capTop + capHeight / 2 + 4.5, "text-anchor": "middle", class: "flow-initial",
+      });
+      initial.textContent = to.charAt(0).toUpperCase();
+      payee.appendChild(initial);
+      const name = svgEl("text", { x: 276, y: capTop + capHeight + 17, "text-anchor": "middle", class: "flow-name" });
+      name.textContent = shortName(to, 9);
+      payee.appendChild(name);
+      const total = svgEl("text", { x: 276, y: capTop + capHeight + 32, "text-anchor": "middle", class: "flow-received" });
+      total.textContent = "+" + formatMoney(received, state.currency);
+      payee.appendChild(total);
+      nodes.appendChild(payee);
+      top += groupHeight + groupGap;
     });
-    const node = (name, x, y, side) => {
-      const group = svgEl("g", { class: "flow-node " + payerTone(name) });
-      group.appendChild(svgEl("circle", { cx: x, cy: y, r: 14 }));
-      const initial = svgEl("text", { x: x, y: y + 4.5, "text-anchor": "middle", class: "flow-initial" });
-      initial.textContent = name.charAt(0).toUpperCase();
-      group.appendChild(initial);
-      const label = svgEl("text", {
-        x: side === "left" ? x - 22 : x + 22,
-        y: y + 4.5,
-        "text-anchor": side === "left" ? "end" : "start",
-        class: "flow-name",
-      });
-      label.textContent = shortName(name);
-      group.appendChild(label);
-      svg.appendChild(group);
-    };
-    payers.forEach((name, i) => node(name, 100, yFor(i, payers.length), "left"));
-    payees.forEach((name, i) => node(name, 220, yFor(i, payees.length), "right"));
+    const height = Math.round(top - groupGap + 6);
+    const svg = svgEl("svg", {
+      viewBox: "0 0 " + FLOW_WIDTH + " " + height,
+      focusable: "false",
+      class: "settle-flow-svg",
+    });
+    svg.appendChild(arcs);
+    svg.appendChild(nodes);
     settleFlow.appendChild(svg);
+  }
+
+  // The settled moment's picture: everyone on one orbit, evenly spaced, around a
+  // check. Before anything is spent it is just the empty rings.
+  function buildSquareArt(container, members, settled) {
+    const key = (settled ? "1" : "0") + "|" + members.join("\u0000");
+    if (container.dataset.key === key) {
+      return;
+    }
+    container.dataset.key = key;
+    container.replaceChildren();
+    const svg = svgEl("svg", { viewBox: "0 0 300 132", focusable: "false", class: "square-svg" });
+    const rings = svgEl("g", { class: "square-rings", transform: "rotate(-8 150 66)" });
+    [[128, 46], [86, 31], [46, 17]].forEach((r, i) => {
+      rings.appendChild(svgEl("ellipse", {
+        cx: 150, cy: 66, rx: r[0], ry: r[1], pathLength: "1", class: "square-ring square-ring-" + i,
+      }));
+    });
+    svg.appendChild(rings);
+    if (settled) {
+      const angle = (-8 * Math.PI) / 180;
+      members.forEach((name, i) => {
+        // Start at the top of the orbit and go round clockwise.
+        const t = -Math.PI / 2 + (i * 2 * Math.PI) / members.length;
+        const ex = 128 * Math.cos(t);
+        const ey = 46 * Math.sin(t);
+        const x = 150 + ex * Math.cos(angle) - ey * Math.sin(angle);
+        const y = 66 + ex * Math.sin(angle) + ey * Math.cos(angle);
+        const place = svgEl("g", { transform: "translate(" + x.toFixed(1) + " " + y.toFixed(1) + ")" });
+        const member = svgEl("g", {
+          class: "square-member square-member-" + i + " " + memberTone(name, members),
+        });
+        member.appendChild(svgEl("circle", { r: 13 }));
+        const initial = svgEl("text", { y: 4.5, "text-anchor": "middle", class: "flow-initial" });
+        initial.textContent = name.charAt(0).toUpperCase();
+        member.appendChild(initial);
+        place.appendChild(member);
+        svg.appendChild(place);
+      });
+      const check = svgEl("g", { class: "square-check" });
+      check.appendChild(svgEl("circle", { cx: 150, cy: 66, r: 19 }));
+      check.appendChild(svgEl("path", { d: "M141 66.5l6 6 12-13", pathLength: "1" }));
+      svg.appendChild(check);
+    } else {
+      svg.appendChild(svgEl("circle", { cx: 150, cy: 66, r: 5, class: "square-dot" }));
+    }
+    container.appendChild(svg);
+  }
+
+  function renderSquareStats(payments) {
+    const stats = [[formatMoney(sumAmounts(state.expenses), state.currency), "shared"]];
+    const count = state.expenses.length;
+    stats.push([String(count), count === 1 ? "expense" : "expenses"]);
+    if (payments.length > 0) {
+      stats.push([String(payments.length), payments.length === 1 ? "payment" : "payments"]);
+    }
+    settleSquareStats.replaceChildren();
+    stats.forEach((stat) => {
+      const cell = document.createElement("span");
+      cell.className = "square-stat";
+      const value = document.createElement("strong");
+      value.textContent = stat[0];
+      const label = document.createElement("span");
+      label.textContent = stat[1];
+      cell.appendChild(value);
+      cell.appendChild(label);
+      settleSquareStats.appendChild(cell);
+    });
   }
 
   function renderSettlements() {
@@ -1273,7 +1397,9 @@
       row.className = "settle-row-button";
       row.appendChild(item);
       row.addEventListener("click", () => {
-        openSettleDialog(s, row);
+        if (!settleList.classList.contains("is-busy")) {
+          openSettleDialog(s, row);
+        }
       });
       attachPaymentSwipe(row, s);
       settleList.appendChild(wrapSettleRow(row));
@@ -1315,17 +1441,27 @@
     }
   }
 
-  function payerTone(name) {
+  // Ten distinct tones, handed out in member order, so no two people on a trip
+  // (up to the 10-member limit) share a colour. A name that is no longer a member
+  // falls back to a stable hash.
+  const TONE_COUNT = 10;
+
+  function memberTone(name, members) {
+    const list = members || (state ? state.members : []);
+    const index = list.indexOf(name);
+    if (index !== -1) {
+      return "avatar-tone-" + (index % TONE_COUNT);
+    }
     let hash = 0;
     for (let i = 0; i < name.length; i += 1) {
       hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
     }
-    return "avatar-tone-" + (hash % 6);
+    return "avatar-tone-" + (hash % TONE_COUNT);
   }
 
-  function createAvatar(name) {
+  function createAvatar(name, members) {
     const avatar = document.createElement("span");
-    avatar.className = "expense-avatar " + payerTone(name);
+    avatar.className = "expense-avatar " + memberTone(name, members);
     avatar.setAttribute("aria-hidden", "true");
     avatar.textContent = name.charAt(0).toUpperCase();
     return avatar;
@@ -1339,7 +1475,7 @@
     row.className = "expense-row";
 
     const avatar = document.createElement("span");
-    avatar.className = "expense-avatar " + payerTone(expense.payer);
+    avatar.className = "expense-avatar " + memberTone(expense.payer);
     avatar.setAttribute("aria-hidden", "true");
     avatar.textContent = expense.payer.charAt(0).toUpperCase();
 
@@ -1507,6 +1643,28 @@
     return shortDate(first) + " \u2013 " + shortDate(last);
   }
 
+  // What each person's share of the spending comes to. With partial splits the
+  // shares differ, so the stat gives the range rather than a misleading average.
+  function shareStat() {
+    const shares = {};
+    state.members.forEach((member) => {
+      shares[member] = 0;
+    });
+    state.expenses.forEach((expense) => {
+      const split = Core.splitPaise(expense.amountPaise, expense.participants, state.members);
+      Object.keys(split).forEach((member) => {
+        shares[member] = (shares[member] || 0) + split[member];
+      });
+    });
+    const values = state.members.map((member) => shares[member]);
+    const low = Math.min.apply(null, values);
+    const high = Math.max.apply(null, values);
+    if (low === high) {
+      return formatMoney(low, state.currency) + " each";
+    }
+    return formatMoney(low, state.currency) + "\u2013" + formatMoney(high, state.currency) + " each";
+  }
+
   function renderWorkspace() {
     let totalPaise = 0;
     state.expenses.forEach((expense) => {
@@ -1523,10 +1681,21 @@
       summary.push(range);
     }
     tripSummaryEl.textContent = summary.join(" \u00b7 ");
+    const hasActivity = count > 0 || (state.payments || []).length > 0;
+    if (hasActivity && computeSettlements(state).length === 0) {
+      const gap = document.createElement("span");
+      gap.className = "sr-only";
+      gap.textContent = " \u00b7 ";
+      const square = document.createElement("span");
+      square.className = "trip-square";
+      square.textContent = "All square";
+      tripSummaryEl.appendChild(gap);
+      tripSummaryEl.appendChild(square);
+    }
     setMoney(tripTotalEl, totalPaise);
-    expensesStat.textContent = count > 0
-      ? formatMoney(Math.round(totalPaise / state.members.length), state.currency) + " per person"
-      : "";
+    tripMiniName.textContent = state.name;
+    setMoney(tripMiniTotal, totalPaise);
+    expensesStat.textContent = count > 0 ? shareStat() : "";
     updateAmountCurrency();
     renderPayerOptions();
     renderBalances();
@@ -1562,7 +1731,8 @@
     paymentDialogOpener = opener || document.activeElement;
     paymentDialog.showModal();
     document.body.classList.add("dialog-open");
-    paymentTo.focus();
+    // Both record and edit start on the first field, From.
+    paymentFrom.focus();
   }
 
   function fillPaymentFields(payment, suggestion) {
@@ -1659,6 +1829,39 @@
     settleDialog.showModal();
     document.body.classList.add("dialog-open");
     settleConfirmBtn.focus();
+  }
+
+  // A paid row folds away and its arc fades to a dashed ghost before the plan is
+  // redrawn. Skipped where the Web Animations API is missing or motion is reduced.
+  function foldPaidRow(row, settlement, record) {
+    const item = row && row.isConnected ? row.closest("li") : null;
+    if (!item || typeof item.animate !== "function" || prefersReducedMotion()) {
+      record();
+      return;
+    }
+    row.focus();
+    settleList.classList.add("is-busy");
+    item.classList.add("is-paid");
+    settleFlow.querySelectorAll(".flow-arc").forEach((arc) => {
+      if (arc.getAttribute("data-from") === settlement.from && arc.getAttribute("data-to") === settlement.to) {
+        arc.classList.add("is-paid");
+      }
+    });
+    const fold = item.animate(
+      [
+        { height: item.offsetHeight + "px", opacity: 1 },
+        { height: "0px", opacity: 0 },
+      ],
+      { duration: 280, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)", fill: "forwards" },
+    );
+    fold.onfinish = () => {
+      settleList.classList.remove("is-busy");
+      if (!record()) {
+        fold.cancel();
+        item.classList.remove("is-paid");
+        renderSettleFlow(computeSettlements(state));
+      }
+    };
   }
 
   function closeSettleDialog() {
@@ -1792,7 +1995,8 @@
     document.body.classList.add("dialog-open");
     activeDialog = "edit";
     markEditingRow(expense.seq);
-    descriptionInput.focus();
+    // Amount first, the same as the add sheet.
+    amountInput.focus();
   }
 
   // Highlight the row being edited without rebuilding the whole history.
@@ -1893,6 +2097,7 @@
       }
       clearUndoBar();
       renderWorkspace();
+      announce(recorded ? "Payment undone" : "Payment restored");
       restoreFocus(
         recorded ? null : document.getElementById("edit-payment-" + payment.seq),
         document.getElementById(recorded ? "view-settle-title" : "view-expenses-title"),
@@ -1906,6 +2111,7 @@
     }
     clearUndoBar();
     renderWorkspace();
+    announce(expense.description + " restored");
     focusEditButton(expense.seq);
   }
 
@@ -2572,10 +2778,13 @@
 
   settleConfirmBtn.addEventListener("click", () => {
     const settlement = pendingSettlement;
+    const opener = settleDialogOpener;
     settleDialogOpener = null;
     closeSettleDialog();
     if (settlement) {
-      recordSuggestedPayment(settlement.from, settlement.to, settlement.amountPaise);
+      foldPaidRow(opener, settlement, () =>
+        recordSuggestedPayment(settlement.from, settlement.to, settlement.amountPaise),
+      );
     }
   });
   settleCancelBtn.addEventListener("click", closeSettleDialog);
@@ -2652,6 +2861,24 @@
       closeTripMenu(false);
     }
   });
+
+  // Phone: once the trip band scrolls away, a slim bar with the trip name and
+  // total slides in over the top. It is fixed, so nothing below it moves.
+  function watchTripHeader() {
+    if (typeof window.IntersectionObserver !== "function") {
+      return;
+    }
+    const observer = new window.IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          tripMini.classList.toggle("is-shown", !entry.isIntersecting && entry.boundingClientRect.top < 0);
+        });
+      },
+      { rootMargin: "-72px 0px 0px 0px" },
+    );
+    observer.observe(tripHeader);
+  }
+  watchTripHeader();
 
   tabExpenses.addEventListener("click", function () {
     switchView("expenses");

@@ -34,7 +34,8 @@
       <button type="button" id="dismiss-conflict" class="notice-dismiss">Reload</button>
     </div>
   </div>
-  <div id="import-error" class="notice notice-warning" role="alert" hidden>
+  <div id="import-error" class="notice notice-warning notice-float" role="alert" hidden>
+    <span class="notice-glyph" aria-hidden="true">!</span>
     <p id="import-error-text" class="notice-text"></p>
     <button type="button" id="dismiss-import-error" class="notice-dismiss" aria-label="Dismiss import error">Dismiss</button>
   </div>
@@ -56,7 +57,7 @@
               <p class="hero-eyebrow">TRIP EXPENSE SPLITTER</p>
               <h1>Split trip costs. Settle up in a few payments.</h1>
               <p class="hero-subcopy">The calm, private way to share every expense and get everyone square.</p>
-              <div class="hero-actions"><button type="button" id="hero-start" class="hero-btn hero-btn-dark">Start a trip</button><button type="button" id="try-sample" class="hero-btn hero-btn-cream">Try a sample trip</button></div>
+              <div class="hero-actions"><button type="button" id="hero-start" class="hero-btn hero-btn-primary">Start a trip<svg aria-hidden="true" focusable="false" viewBox="0 0 24 24"><path d="M5 12h13m-5-5 5 5-5 5"></path></svg></button><button type="button" id="try-sample" class="hero-btn hero-btn-ghost">Try a sample trip</button></div>
               <p class="hero-trust">Any currency · No sign-up · Stays on your device</p>
               <span class="hero-corner hero-corner-top" aria-hidden="true"></span><span class="hero-corner hero-corner-bottom" aria-hidden="true"></span>
             </div>
@@ -144,6 +145,11 @@
            </div>
          </div>
        </header>
+       <div id="trip-mini" class="trip-mini" aria-hidden="true">
+         <svg class="brand-mark" focusable="false" viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="10" ry="4.2" transform="rotate(-18 12 12)"></ellipse><circle cx="12" cy="12" r="3.2"></circle></svg>
+         <span id="trip-mini-name" class="trip-mini-name"></span>
+         <span id="trip-mini-total" class="trip-mini-total"></span>
+       </div>
 
       <dialog id="settle-dialog" class="expense-dialog new-trip-dialog settle-dialog" aria-labelledby="settle-dialog-title" aria-describedby="settle-dialog-amount settle-dialog-text">
         <div class="sheet-grab" aria-hidden="true"></div>
@@ -250,7 +256,7 @@
            <p id="balances-stat" class="view-stat"></p>
          </div>
          <section class="panel" aria-labelledby="view-balances-title">
-           <div id="balances-empty" class="view-empty" hidden><svg class="orbit-art" aria-hidden="true" focusable="false" viewBox="0 0 120 72"><ellipse cx="60" cy="38" rx="52" ry="16"></ellipse><ellipse cx="60" cy="38" rx="34" ry="10"></ellipse><circle class="orbit-dot" cx="60" cy="38" r="5"></circle><circle class="orbit-dot orbit-dot-soft" cx="104" cy="32" r="3"></circle></svg><strong id="balances-empty-title">No balances yet</strong><span id="balances-empty-text" class="muted">Add an expense to see who owes whom.</span></div>
+           <div id="balances-empty" class="view-empty" hidden><svg class="orbit-art" aria-hidden="true" focusable="false" viewBox="0 0 120 72"><ellipse cx="60" cy="38" rx="52" ry="16"></ellipse><ellipse cx="60" cy="38" rx="34" ry="10"></ellipse><circle class="orbit-dot" cx="60" cy="38" r="5"></circle><circle class="orbit-dot orbit-dot-soft" cx="104" cy="32" r="3"></circle></svg><div id="balances-square-art" class="square-art" aria-hidden="true"></div><strong id="balances-empty-title">No balances yet</strong><span id="balances-empty-text" class="muted">Add an expense to see who owes whom.</span></div>
            <ul id="balance-list" class="balance-list"></ul>
          </section>
        </div>
@@ -267,9 +273,10 @@
            </div>
            <div id="settle-flow" class="settle-flow" aria-hidden="true"></div>
            <div id="settle-empty" class="view-empty settle-square" hidden>
-             <div class="square-art" aria-hidden="true"><i class="square-ring square-ring-one"></i><i class="square-ring square-ring-two"></i><i class="square-ring square-ring-three"></i><svg viewBox="0 0 24 24" focusable="false"><path d="m7 12.5 3.2 3.2L17 9"></path></svg></div>
+             <div id="settle-square-art" class="square-art" aria-hidden="true"></div>
              <strong id="settle-empty-title">Everyone's square.</strong>
              <span id="settle-empty-text" class="muted">Nothing to settle.</span>
+             <div id="settle-square-stats" class="square-stats" aria-hidden="true" hidden></div>
            </div>
             <p id="settle-hint" class="muted settle-hint"></p>
             <ul id="settle-list" class="settle-list" aria-labelledby="view-settle-title"></ul>
