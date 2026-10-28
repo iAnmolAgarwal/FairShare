@@ -16,12 +16,12 @@ function findHash(html) {
 }
 
 test('content hash changes when core.js is modified without restart', async () => {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'splitsafar-hash-'));
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'fairshare-hash-'));
   try {
     for (const file of ['index.html', 'core.js', 'app.js', 'styles.css']) {
       fs.copyFileSync(path.join(__dirname, '..', file), path.join(tmpDir, file));
     }
-    process.env.SPLITSAFAR_ROOT = tmpDir;
+    process.env.FAIRSHARE_ROOT = tmpDir;
     delete require.cache[require.resolve(SERVER_PATH)];
     const server = require(SERVER_PATH);
     await new Promise((resolve) => { server.listen(0, '127.0.0.1', resolve); });

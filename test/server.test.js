@@ -150,7 +150,7 @@ test('GET /styles.css body contains CSS content', async () => {
 test('GET /app.js body contains the load-failure guard', async () => {
   const res = await request('GET', '/app.js');
   assert.ok(res.body.includes('load-failure'));
-  assert.ok(res.body.includes('typeof window.SplitSafarCore'));
+  assert.ok(res.body.includes('typeof window.FairShareCore'));
 });
 
 test('tokens for core.js, app.js and styles.css all differ and are 16 hex chars', async () => {
@@ -274,13 +274,13 @@ test('index.html every label for= references an existing id', async () => {
 });
 
 test('missing asset returns 503 and server keeps running', async () => {
-  const tmpDir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'splitsafar-test-'));
+  const tmpDir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'fairshare-test-'));
   try {
     fs.writeFileSync(path.join(tmpDir, 'index.html'), '<html></html>');
     fs.writeFileSync(path.join(tmpDir, 'core.js'), '// core');
     // Intentionally do NOT write app.js or styles.css
 
-    process.env.SPLITSAFAR_ROOT = tmpDir;
+    process.env.FAIRSHARE_ROOT = tmpDir;
     delete require.cache[require.resolve(SERVER_PATH)];
     const srv = require(SERVER_PATH);
     await new Promise((resolve) => { srv.listen(0, '127.0.0.1', resolve); });

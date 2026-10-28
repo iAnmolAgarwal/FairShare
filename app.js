@@ -2,10 +2,7 @@
   "use strict";
 
   function hasCore() {
-    return (
-      typeof window.FairShareCore === "object" ||
-      typeof window.SplitSafarCore === "object"
-    );
+    return typeof window.FairShareCore === "object";
   }
 
   function showLoadFailure() {
@@ -36,13 +33,16 @@
     appRoot.hidden = false;
   }
 
-  const Core = window.FairShareCore || window.SplitSafarCore;
+  const Core = window.FairShareCore;
 
-  const STORAGE_KEY = "splitsafar.activeTrip.v1";
-  const BACKUP_KEY = "splitsafar.backup.v1";
+  const STORAGE_KEY = "fairshare.activeTrip.v1";
+  const BACKUP_KEY = "fairshare.backup.v1";
   // Recovery copy of the trip most recently cleared by "New trip" (kept apart from
   // BACKUP_KEY, which only ever holds unreadable data).
-  const LAST_REMOVED_KEY = "splitsafar.lastRemoved.v1";
+  const LAST_REMOVED_KEY = "fairshare.lastRemoved.v1";
+  // Key prefix used while the app was called SplitSafar; read once by
+  // migrateLegacyStorage() so trips saved under the old name are kept.
+  const LEGACY_KEY_PREFIX = "splitsafar.";
   const SCHEMA_VERSION = Core.SCHEMA_VERSION;
   const MIN_MEMBERS = Core.MIN_MEMBERS;
   const MAX_MEMBERS = Core.MAX_MEMBERS;
@@ -529,6 +529,24 @@
     } else {
       showToast("Copy failed. Select and copy the summary manually.");
     }
+  }
+
+  // One-time move of data saved under the legacy key names. A key is copied only when
+  // its new name is still empty, and the legacy key is removed only after the copy.
+  function migrateLegacyStorage() {
+    [STORAGE_KEY, BACKUP_KEY, LAST_REMOVED_KEY].forEach((key) => {
+      const legacyKey = LEGACY_KEY_PREFIX + key.slice(key.indexOf(".") + 1);
+      try {
+        const legacy = localStorage.getItem(legacyKey);
+        if (legacy === null || localStorage.getItem(key) !== null) {
+          return;
+        }
+        localStorage.setItem(key, legacy);
+        localStorage.removeItem(legacyKey);
+      } catch {
+        // Migration is best effort; the legacy copy stays put if storage is unavailable.
+      }
+    });
   }
 
   function readStoredTrip() {
@@ -2144,6 +2162,7 @@
 
   renderMemberList();
 
+  migrateLegacyStorage();
   const loaded = readStoredTrip();
   if (loaded.trip) {
     state = loaded.trip;

@@ -50,7 +50,10 @@ function page(seed, options) {
       installDialogShim(window);
       window.matchMedia = (query) => ({ matches: Boolean(options && options.desktop && query === '(min-width: 900px)') });
       if (seed !== undefined) {
-        window.localStorage.setItem('splitsafar.activeTrip.v1', seed);
+        window.localStorage.setItem('fairshare.activeTrip.v1', seed);
+      }
+      if (options && options.beforeParse) {
+        options.beforeParse(window);
       }
     }
   });
@@ -226,9 +229,9 @@ test('app smoke: mark suggested payment paid and undo it', () => {
   row.dispatchEvent(new dom.window.PointerEvent('pointerdown', { bubbles: true, pointerId: 1, pointerType: 'touch', clientX: 300, clientY: 10 }));
   row.dispatchEvent(new dom.window.PointerEvent('pointermove', { bubbles: true, pointerId: 1, pointerType: 'touch', clientX: 150, clientY: 12 }));
   row.dispatchEvent(new dom.window.PointerEvent('pointerup', { bubbles: true, pointerId: 1, pointerType: 'touch', clientX: 100, clientY: 12 }));
-  assert.equal(JSON.parse(dom.window.localStorage.getItem('splitsafar.activeTrip.v1')).payments.length, 1, 'payment recorded');
+  assert.equal(JSON.parse(dom.window.localStorage.getItem('fairshare.activeTrip.v1')).payments.length, 1, 'payment recorded');
   doc.getElementById('app-toast-undo').click();
-  assert.equal(JSON.parse(dom.window.localStorage.getItem('splitsafar.activeTrip.v1')).payments.length, 0, 'payment undone');
+  assert.equal(JSON.parse(dom.window.localStorage.getItem('fairshare.activeTrip.v1')).payments.length, 0, 'payment undone');
   assert.equal(errors.length, 0, 'no console errors: ' + errors.join(' | '));
   dom.window.close();
 });
@@ -262,7 +265,7 @@ test('app smoke: swiping a suggested payment records it', () => {
   row.dispatchEvent(new dom.window.PointerEvent('pointerdown', { bubbles: true, pointerId: 1, pointerType: 'touch', clientX: 300, clientY: 10 }));
   row.dispatchEvent(new dom.window.PointerEvent('pointermove', { bubbles: true, pointerId: 1, pointerType: 'touch', clientX: 150, clientY: 12 }));
   row.dispatchEvent(new dom.window.PointerEvent('pointerup', { bubbles: true, pointerId: 1, pointerType: 'touch', clientX: 100, clientY: 12 }));
-  assert.equal(JSON.parse(dom.window.localStorage.getItem('splitsafar.activeTrip.v1')).payments.length, 1, 'swipe records payment');
+  assert.equal(JSON.parse(dom.window.localStorage.getItem('fairshare.activeTrip.v1')).payments.length, 1, 'swipe records payment');
   assert.equal(errors.length, 0, 'no console errors: ' + errors.join(' | '));
   dom.window.close();
 });
@@ -293,7 +296,7 @@ test('app smoke: manually record a payment', () => {
   doc.getElementById('payment-from').value = 'B'; doc.getElementById('payment-to').value = 'A';
   doc.getElementById('payment-amount').value = '25';
   doc.getElementById('payment-form').dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
-  assert.equal(JSON.parse(dom.window.localStorage.getItem('splitsafar.activeTrip.v1')).payments[0].amountPaise, 2500);
+  assert.equal(JSON.parse(dom.window.localStorage.getItem('fairshare.activeTrip.v1')).payments[0].amountPaise, 2500);
   assert.ok(doc.querySelector('.payment-row'), 'payment appears in expenses feed');
   assert.equal(errors.length, 0, 'no console errors: ' + errors.join(' | '));
   dom.window.close();
@@ -396,7 +399,7 @@ test('app smoke: loading with #settle hash opens Settle up view', () => {
   doc.getElementById('tab-settle').click();
   dom.window.location.hash = '#settle';
   // Reload-style: create a new page with the hash
-  const saved = dom.window.localStorage.getItem('splitsafar.activeTrip.v1');
+  const saved = dom.window.localStorage.getItem('fairshare.activeTrip.v1');
   dom.window.close();
 
   const { dom: dom2, errors: err2 } = page(saved);
@@ -423,7 +426,7 @@ test('app smoke: reload from localStorage preserves balances', () => {
   addExpense(doc1, dom1.window, { desc: 'B pays 60', amount: '60', payer: 'B', date: '2026-02-02', participants: ['A', 'B', 'C', 'D'] });
   addExpense(doc1, dom1.window, { desc: 'C pays 90', amount: '90', payer: 'C', date: '2026-02-03', participants: ['C', 'D'] });
 
-  const saved = dom1.window.localStorage.getItem('splitsafar.activeTrip.v1');
+  const saved = dom1.window.localStorage.getItem('fairshare.activeTrip.v1');
   dom1.window.close();
 
   assert.ok(saved, 'trip was saved to localStorage');
@@ -447,7 +450,7 @@ test('app smoke: start new without exporting shows empty setup and clears saved 
   addMember(doc, 'B');
   createTrip(doc, 'Test');
 
-  const savedBefore = dom.window.localStorage.getItem('splitsafar.activeTrip.v1');
+  const savedBefore = dom.window.localStorage.getItem('fairshare.activeTrip.v1');
   assert.ok(savedBefore, 'trip exists before start new');
 
   doc.getElementById('new-trip').click();
@@ -459,7 +462,7 @@ test('app smoke: start new without exporting shows empty setup and clears saved 
   assert.ok(doc.getElementById('workspace-screen').hidden, 'workspace is hidden');
   assert.equal(doc.getElementById('trip-name').value, '', 'trip name is empty');
 
-  const savedAfter = dom.window.localStorage.getItem('splitsafar.activeTrip.v1');
+  const savedAfter = dom.window.localStorage.getItem('fairshare.activeTrip.v1');
   assert.equal(savedAfter, null, 'saved trip is removed');
 
   assert.equal(errors.length, 0, 'no console errors: ' + errors.join(' | '));
@@ -472,14 +475,14 @@ test('app smoke: failed export keeps the current trip and leaves confirmation op
   addMember(doc, 'A');
   addMember(doc, 'B');
   createTrip(doc, 'Keep me');
-  const savedBefore = dom.window.localStorage.getItem('splitsafar.activeTrip.v1');
+  const savedBefore = dom.window.localStorage.getItem('fairshare.activeTrip.v1');
   dom.window.URL.createObjectURL = () => { throw new Error('download unavailable'); };
   doc.getElementById('trip-options').click();
   doc.getElementById('new-trip').click();
   doc.getElementById('confirm-export-start').click();
   assert.ok(doc.getElementById('new-trip-dialog').open, 'confirmation stays open');
   assert.ok(doc.getElementById('new-trip-dialog-error').textContent.includes('Could not export'), 'export error is inside dialog');
-  assert.equal(dom.window.localStorage.getItem('splitsafar.activeTrip.v1'), savedBefore, 'trip remains saved');
+  assert.equal(dom.window.localStorage.getItem('fairshare.activeTrip.v1'), savedBefore, 'trip remains saved');
   assert.equal(errors.length, 0, 'no console errors: ' + errors.join(' | '));
   dom.window.close();
 });
@@ -554,7 +557,7 @@ test('app smoke: tapping a suggested payment asks to mark it paid, without editi
   assert.equal(doc.getElementById('settle-edit'), null, 'no amount editing');
   assert.equal(doc.getElementById('payment-dialog').open, false, 'payment sheet stays closed');
   doc.getElementById('settle-confirm').click();
-  const stored = JSON.parse(dom.window.localStorage.getItem('splitsafar.activeTrip.v1'));
+  const stored = JSON.parse(dom.window.localStorage.getItem('fairshare.activeTrip.v1'));
   assert.equal(stored.payments.length, 1, 'confirm records the payment');
   assert.equal(stored.payments[0].amountPaise, 5000);
   assert.equal(errors.length, 0, 'no console errors: ' + errors.join(' | '));
@@ -572,7 +575,7 @@ test('app smoke: a right swipe never records a payment', () => {
   row.dispatchEvent(new dom.window.PointerEvent('pointerdown', { bubbles: true, pointerId: 1, pointerType: 'touch', clientX: 20, clientY: 10 }));
   row.dispatchEvent(new dom.window.PointerEvent('pointermove', { bubbles: true, pointerId: 1, pointerType: 'touch', clientX: 200, clientY: 12 }));
   row.dispatchEvent(new dom.window.PointerEvent('pointerup', { bubbles: true, pointerId: 1, pointerType: 'touch', clientX: 260, clientY: 12 }));
-  assert.equal(JSON.parse(dom.window.localStorage.getItem('splitsafar.activeTrip.v1')).payments.length, 0);
+  assert.equal(JSON.parse(dom.window.localStorage.getItem('fairshare.activeTrip.v1')).payments.length, 0);
   assert.equal(errors.length, 0, 'no console errors: ' + errors.join(' | '));
   dom.window.close();
 });
@@ -588,9 +591,9 @@ test('app smoke: undo restores a deleted payment', () => {
   doc.getElementById('tab-expenses').click();
   doc.querySelector('#expense-list .payment-row').click();
   doc.getElementById('delete-payment').click();
-  assert.equal(JSON.parse(dom.window.localStorage.getItem('splitsafar.activeTrip.v1')).payments.length, 0, 'deleted');
+  assert.equal(JSON.parse(dom.window.localStorage.getItem('fairshare.activeTrip.v1')).payments.length, 0, 'deleted');
   doc.getElementById('app-toast-undo').click();
-  assert.equal(JSON.parse(dom.window.localStorage.getItem('splitsafar.activeTrip.v1')).payments.length, 1, 'restored by undo');
+  assert.equal(JSON.parse(dom.window.localStorage.getItem('fairshare.activeTrip.v1')).payments.length, 1, 'restored by undo');
   assert.equal(errors.length, 0, 'no console errors: ' + errors.join(' | '));
   dom.window.close();
 });
@@ -635,7 +638,7 @@ test('app smoke: closing sheets returns focus to what opened them', async () => 
   dom.window.close();
 });
 
-const KEY = 'splitsafar.activeTrip.v1';
+const KEY = 'fairshare.activeTrip.v1';
 const seedTrip = (extra) => JSON.stringify(Object.assign({
   schemaVersion: 4, id: 'trip-aaaaaaaa', name: 'Seeded', currency: 'INR', members: ['A', 'B'],
   expenses: [{ seq: 1, description: 'Dinner', amountPaise: 10000, payer: 'A', date: '2026-01-05', participants: ['A', 'B'] }],
@@ -710,13 +713,13 @@ test('app smoke: a large recorded payment can be edited and saved unchanged', ()
 test('app smoke: New trip keeps the unreadable-data backup and stores its own recovery copy', () => {
   const { dom, errors } = page(seedTrip());
   const doc = dom.window.document;
-  dom.window.localStorage.setItem('splitsafar.backup.v1', 'old unreadable data');
+  dom.window.localStorage.setItem('fairshare.backup.v1', 'old unreadable data');
   doc.getElementById('new-trip').click();
   doc.getElementById('confirm-start-new').click();
   assert.equal(doc.getElementById('new-trip-dialog').open, false);
   assert.equal(dom.window.localStorage.getItem(KEY), null);
-  assert.equal(dom.window.localStorage.getItem('splitsafar.backup.v1'), 'old unreadable data');
-  assert.equal(JSON.parse(dom.window.localStorage.getItem('splitsafar.lastRemoved.v1')).name, 'Seeded');
+  assert.equal(dom.window.localStorage.getItem('fairshare.backup.v1'), 'old unreadable data');
+  assert.equal(JSON.parse(dom.window.localStorage.getItem('fairshare.lastRemoved.v1')).name, 'Seeded');
   assert.equal(errors.length, 0, 'no console errors: ' + errors.join(' | '));
   dom.window.close();
 });
@@ -766,6 +769,75 @@ test('app smoke: a failed payment save is explained inside the payment sheet', (
   doc.getElementById('payment-form').dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
   assert.equal(doc.getElementById('payment-dialog').open, true);
   assert.match(doc.getElementById('payment-error').textContent, /another tab/);
+  assert.equal(errors.length, 0, 'no console errors: ' + errors.join(' | '));
+  dom.window.close();
+});
+
+// Keys written while the app was called SplitSafar.
+const LEGACY_PREFIX = 'splitsafar.';
+
+test('app smoke: data saved under legacy keys is moved to the new keys on load', () => {
+  const { dom, errors } = page(undefined, {
+    beforeParse(window) {
+      window.localStorage.setItem(LEGACY_PREFIX + 'activeTrip.v1', seedTrip());
+      window.localStorage.setItem(LEGACY_PREFIX + 'backup.v1', 'old unreadable data');
+      window.localStorage.setItem(LEGACY_PREFIX + 'lastRemoved.v1', seedTrip({ name: 'Removed' }));
+    }
+  });
+  const doc = dom.window.document;
+  const store = dom.window.localStorage;
+  assert.equal(doc.getElementById('workspace-screen').hidden, false, 'legacy trip opens in the workspace');
+  assert.equal(JSON.parse(store.getItem(KEY)).name, 'Seeded');
+  assert.equal(store.getItem('fairshare.backup.v1'), 'old unreadable data');
+  assert.equal(JSON.parse(store.getItem('fairshare.lastRemoved.v1')).name, 'Removed');
+  for (const name of ['activeTrip.v1', 'backup.v1', 'lastRemoved.v1']) {
+    assert.equal(store.getItem(LEGACY_PREFIX + name), null, 'legacy ' + name + ' is removed');
+  }
+  assert.equal(errors.length, 0, 'no console errors: ' + errors.join(' | '));
+  dom.window.close();
+});
+
+test('app smoke: legacy data never overwrites data already under the new key', () => {
+  const legacy = seedTrip({ name: 'Legacy' });
+  const { dom, errors } = page(seedTrip(), {
+    beforeParse(window) {
+      window.localStorage.setItem(LEGACY_PREFIX + 'activeTrip.v1', legacy);
+    }
+  });
+  const store = dom.window.localStorage;
+  assert.equal(JSON.parse(store.getItem(KEY)).name, 'Seeded', 'current trip is kept');
+  assert.equal(store.getItem(LEGACY_PREFIX + 'activeTrip.v1'), legacy, 'legacy copy is left alone');
+  assert.equal(errors.length, 0, 'no console errors: ' + errors.join(' | '));
+  dom.window.close();
+});
+
+test('app smoke: a failed migration write keeps the legacy copy and the app still loads', () => {
+  const legacy = seedTrip();
+  const { dom, errors } = page(undefined, {
+    beforeParse(window) {
+      window.localStorage.setItem(LEGACY_PREFIX + 'activeTrip.v1', legacy);
+      window.Storage.prototype.setItem = function () { throw new Error('quota'); };
+    }
+  });
+  const doc = dom.window.document;
+  assert.equal(doc.getElementById('setup-screen').hidden, false, 'setup screen is shown');
+  assert.equal(dom.window.localStorage.getItem(LEGACY_PREFIX + 'activeTrip.v1'), legacy, 'legacy data is not lost');
+  assert.equal(errors.length, 0, 'no console errors: ' + errors.join(' | '));
+  dom.window.close();
+});
+
+test('app smoke: the app loads when every storage call throws', () => {
+  const { dom, errors } = page(undefined, {
+    beforeParse(window) {
+      const proto = window.Storage.prototype;
+      for (const method of ['getItem', 'setItem', 'removeItem']) {
+        proto[method] = function () { throw new Error('denied'); };
+      }
+    }
+  });
+  const doc = dom.window.document;
+  assert.equal(doc.getElementById('load-failure').hidden, true, 'no load failure');
+  assert.equal(doc.getElementById('setup-screen').hidden, false, 'setup screen is shown');
   assert.equal(errors.length, 0, 'no console errors: ' + errors.join(' | '));
   dom.window.close();
 });

@@ -7,7 +7,7 @@ const crypto = require("crypto");
 
 const HOST = "0.0.0.0";
 const PORT = Number(process.env.PORT) || 5000;
-const ROOT = process.env.SPLITSAFAR_ROOT || __dirname;
+const ROOT = process.env.FAIRSHARE_ROOT || __dirname;
 
 const SERVER_JS = fs.readFileSync(__filename);
 

@@ -5,7 +5,6 @@
     module.exports = api;
   } else {
     global.FairShareCore = api;
-    global.SplitSafarCore = api;
   }
 })(typeof window !== "undefined" ? window : globalThis, function () {
   "use strict";

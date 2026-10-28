@@ -9,7 +9,17 @@ test('require() exposes the API without leaking globals', () => {
   assert.equal(typeof Core.parseAmount, 'function');
   assert.equal(typeof Core.computeBalances, 'function');
   assert.equal(typeof Core.migrateTrip, 'function');
-  assert.equal(typeof globalThis.SplitSafarCore, 'undefined');
+  assert.equal(typeof globalThis.FairShareCore, 'undefined');
+});
+
+test('in a browser, core.js exposes only window.FairShareCore', () => {
+  const vm = require('vm');
+  const fs = require('fs');
+  const path = require('path');
+  const window = {};
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '..', 'core.js'), 'utf8'), { window });
+  assert.deepEqual(Object.keys(window), ['FairShareCore']);
+  assert.equal(typeof window.FairShareCore.computeSettlements, 'function');
 });
 
 test('formatMoney formats INR, USD, JPY and EUR minor units', () => {
