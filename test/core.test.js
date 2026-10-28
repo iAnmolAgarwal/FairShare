@@ -857,3 +857,122 @@ test('no change can push a trip total past a safe integer', () => {
   assert.equal(Core.updateExpense(withExpense, 5, Object.assign({}, expense, { amountPaise: 2000 })), null, 'growing an expense');
   assert.equal(Core.updatePayment(trip, 1, { from: 'a', to: 'b', amountPaise: Number.MAX_SAFE_INTEGER + 1, date: '2026-01-01' }), null);
 });
+
+const IMPORT_TRIP = {
+  schemaVersion: 4, id: 'trip-aaaaaaaa', name: 'Lisbon', currency: 'EUR', members: ['Ana', 'Ben', 'Cy'],
+  expenses: [
+    { seq: 1, description: 'Hotel', amountPaise: 45000, payer: 'Ana', date: '2026-03-01', participants: ['Ana', 'Ben', 'Cy'] },
+    { seq: 3, description: 'Tram', amountPaise: 999, payer: 'Ben', date: '2026-03-02', participants: ['Ben', 'Cy'] },
+  ],
+  nextSeq: 4,
+  payments: [{ seq: 2, from: 'Cy', to: 'Ana', amountPaise: 15000, date: '2026-03-02' }],
+};
+
+function exportText(trip, extra) {
+  return JSON.stringify(Object.assign(Core.buildExport(trip, '2026-03-05T10:00:00.000Z').object, extra), null, 2);
+}
+
+function importError(text) {
+  const result = Core.parseImport(text);
+  assert.equal(result.ok, false, 'refused: ' + String(text).slice(0, 60));
+  return result.error;
+}
+
+test('parseImport round-trips an exported trip to an equal trip', () => {
+  const saved = Object.assign({ revision: 7 }, migrateTrip(IMPORT_TRIP));
+  const result = Core.parseImport(exportText(saved));
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.trip, migrateTrip(IMPORT_TRIP));
+  assert.deepEqual(result.trip, IMPORT_TRIP, 'nothing but the revision is dropped');
+  assert.deepEqual(Core.parseImport(exportText(result.trip)).trip, result.trip, 'a second round trip is stable');
+});
+
+test('parseImport accepts a bare trip, a byte order mark and an older trip schema', () => {
+  assert.deepEqual(Core.parseImport(JSON.stringify(IMPORT_TRIP)).trip, IMPORT_TRIP);
+  assert.deepEqual(Core.parseImport('﻿' + exportText(IMPORT_TRIP)).trip, IMPORT_TRIP);
+  const legacy = { name: 'Old', members: ['a', 'b'], expenses: [{ description: 'x', amount: 12.5, payer: 'a', date: '2025-01-01', participants: ['a', 'b'] }] };
+  const result = Core.parseImport(JSON.stringify({ app: 'FairShare', exportVersion: 1, schemaVersion: 1, trip: legacy }));
+  assert.equal(result.ok, true);
+  assert.equal(result.trip.currency, 'INR');
+  assert.equal(result.trip.expenses[0].amountPaise, 1250);
+  assert.equal(result.trip.id, null, 'an invalid or missing id is left for the app to assign');
+});
+
+test('parseImport refuses text that is not JSON or not a trip', () => {
+  const E = Core.IMPORT_ERRORS;
+  assert.equal(importError(''), E.notJson);
+  assert.equal(importError('{"app":"FairShare",'), E.notJson);
+  assert.equal(importError('<html></html>'), E.notJson);
+  assert.equal(importError(undefined), E.unreadable);
+  for (const text of ['null', '42', '"trip"', '[]', JSON.stringify([IMPORT_TRIP]), '{}', '{"hello":"world"}',
+    JSON.stringify(Object.assign({ app: 'OtherApp' }, IMPORT_TRIP))]) {
+    assert.equal(importError(text), E.notTrip, text.slice(0, 40));
+  }
+});
+
+test('parseImport refuses files over the size limit before parsing them', () => {
+  const padded = exportText(IMPORT_TRIP) + ' '.repeat(Core.MAX_IMPORT_SIZE);
+  assert.equal(importError(padded), Core.IMPORT_ERRORS.tooLarge);
+  const justUnder = exportText(IMPORT_TRIP);
+  assert.equal(Core.parseImport(justUnder + ' '.repeat(Core.MAX_IMPORT_SIZE - justUnder.length)).ok, true);
+});
+
+test('parseImport refuses exports from a newer version of FairShare', () => {
+  const E = Core.IMPORT_ERRORS;
+  assert.equal(importError(exportText(IMPORT_TRIP, { schemaVersion: Core.SCHEMA_VERSION + 1 })), E.newer);
+  assert.equal(importError(exportText(IMPORT_TRIP, { exportVersion: 2 })), E.newer);
+  const newerTrip = Object.assign({}, IMPORT_TRIP, { schemaVersion: Core.SCHEMA_VERSION + 1 });
+  assert.equal(importError(exportText(newerTrip, { trip: newerTrip })), E.newer);
+  assert.equal(importError(JSON.stringify(newerTrip)), E.newer, 'a bare newer trip too');
+});
+
+test('parseImport refuses damaged trips with the same validation as a saved trip', () => {
+  const damaged = Core.IMPORT_ERRORS.damaged;
+  const variant = (changes) => exportText(Object.assign({}, IMPORT_TRIP, changes));
+  const expense = IMPORT_TRIP.expenses[0];
+  const cases = {
+    'no trip': JSON.stringify({ app: 'FairShare', exportVersion: 1, schemaVersion: 4 }),
+    'trip is an array': JSON.stringify({ app: 'FairShare', trip: [] }),
+    'no name': variant({ name: '  ' }),
+    'no members': variant({ members: undefined }),
+    'one member': variant({ members: ['Ana'], expenses: [], payments: [] }),
+    'duplicate members': variant({ members: ['Ana', 'ana'] }),
+    'no expenses': variant({ expenses: undefined }),
+    'unknown currency': variant({ currency: 'ABC' }),
+    'metal currency': variant({ currency: 'XAU' }),
+    'lowercase currency': variant({ currency: 'eur' }),
+    'unknown payer': variant({ expenses: [Object.assign({}, expense, { payer: 'Zed' })] }),
+    'bad date': variant({ expenses: [Object.assign({}, expense, { date: '2026-02-30' })] }),
+    'negative amount': variant({ expenses: [Object.assign({}, expense, { amountPaise: -5 })] }),
+    'fractional amount': variant({ expenses: [Object.assign({}, expense, { amountPaise: 1.5 })] }),
+    'string amount': variant({ expenses: [Object.assign({}, expense, { amountPaise: '100' })] }),
+    'expense over the cap': variant({ expenses: [Object.assign({}, expense, { amountPaise: Core.maxAmountMinor('EUR') + 1 })] }),
+    'total over a safe integer': variant({ payments: [{ seq: 2, from: 'Cy', to: 'Ana', amountPaise: Number.MAX_SAFE_INTEGER, date: '2026-03-02' }] }),
+    'payment to self': variant({ payments: [{ seq: 2, from: 'Cy', to: 'Cy', amountPaise: 100, date: '2026-03-02' }] }),
+    'duplicate payment seq': variant({ payments: [IMPORT_TRIP.payments[0], IMPORT_TRIP.payments[0]] }),
+  };
+  for (const [name, text] of Object.entries(cases)) {
+    assert.equal(importError(text), damaged, name);
+  }
+  assert.equal(Core.parseImport(variant({ expenses: [Object.assign({}, expense, { amountPaise: Core.maxAmountMinor('EUR') })], payments: [] })).ok, true, 'the cap itself is fine');
+});
+
+test('parseImport refuses prototype-pollution keys anywhere in the file', () => {
+  const damaged = Core.IMPORT_ERRORS.damaged;
+  const base = exportText(IMPORT_TRIP);
+  const texts = [
+    base.replace('"app":', '"__proto__": {"polluted": true}, "app":'),
+    base.replace('"name":', '"constructor": {"prototype": {"polluted": true}}, "name":'),
+    base.replace('"description": "Hotel"', '"description": "Hotel", "__proto__": {"payer": "Ana"}'),
+    JSON.stringify(Object.assign({}, IMPORT_TRIP, { expenses: [] })).replace('"name":', '"prototype": 1, "name":'),
+  ];
+  for (const text of texts) {
+    assert.equal(importError(text), damaged, text.slice(0, 80));
+  }
+  assert.equal({}.polluted, undefined, 'Object.prototype untouched');
+  assert.equal(Object.prototype.hasOwnProperty.call(Object.prototype, 'polluted'), false);
+  const members = Core.parseImport(exportText(Object.assign({}, IMPORT_TRIP, {
+    members: ['__proto__', 'constructor'], expenses: [], payments: [],
+  })));
+  assert.equal(members.ok, true, 'such words are fine as member names, which are values');
+});

@@ -23,6 +23,20 @@
   const MAX_AMOUNT_MINOR_ANY = MAX_AMOUNT_MAJOR * 1000;
   // Sequence numbers stay far below MAX_SAFE_INTEGER so the next one is always exact.
   const MAX_SEQ = 2147483647;
+  const EXPORT_APP = "FairShare";
+  const EXPORT_VERSION = 1;
+  // An export of a full trip is far smaller; the limit only stops a wrong file from
+  // tying up the page. It applies to the file size in bytes and to the text length.
+  const MAX_IMPORT_SIZE = 2 * 1024 * 1024;
+  const UNSAFE_IMPORT_KEYS = ["__proto__", "constructor", "prototype"];
+  const IMPORT_ERRORS = Object.freeze({
+    unreadable: "This file could not be read.",
+    tooLarge: "This file is too large to be a FairShare trip. The limit is 2 MB.",
+    notJson: "This file is not a FairShare trip. It is not valid JSON.",
+    newer: "This trip was exported from a newer version of FairShare. Reload the page to update, then try again.",
+    notTrip: "This file is not a FairShare trip.",
+    damaged: "This trip file is damaged, so it could not be imported.",
+  });
   const MONTHS = [
     "Jan",
     "Feb",
@@ -1347,14 +1361,97 @@
     const datePart = exportedAt.substring(0, 10);
     return {
       object: {
-        app: "FairShare",
-        exportVersion: 1,
+        app: EXPORT_APP,
+        exportVersion: EXPORT_VERSION,
         schemaVersion: SCHEMA_VERSION,
         exportedAt: exportedAt,
         trip: JSON.parse(JSON.stringify(trip)),
       },
       fileName: "fairshare-" + slug + "-" + datePart + ".json",
     };
+  }
+
+  function importFailure(message) {
+    return { ok: false, error: message };
+  }
+
+  function isNewerVersion(version, current) {
+    return typeof version === "number" && version > current;
+  }
+
+  function isRecord(value) {
+    return value !== null && typeof value === "object" && !Array.isArray(value);
+  }
+
+  // JSON.parse never sets a prototype, but these keys could still reach one through
+  // Object.assign or a property lookup later, so a file that has them is refused.
+  function parseJsonRefusingUnsafeKeys(text) {
+    let unsafe = false;
+    const value = JSON.parse(text, (key, item) => {
+      if (UNSAFE_IMPORT_KEYS.indexOf(key) !== -1) {
+        unsafe = true;
+        return undefined;
+      }
+      return item;
+    });
+    return { value: value, unsafe: unsafe };
+  }
+
+  // The raw trip inside an export file, or inside a bare trip object.
+  function unwrapImport(parsed) {
+    let raw = parsed;
+    if (parsed.app === EXPORT_APP) {
+      const newer =
+        isNewerVersion(parsed.exportVersion, EXPORT_VERSION) || isNewerVersion(parsed.schemaVersion, SCHEMA_VERSION);
+      if (newer) {
+        return { error: IMPORT_ERRORS.newer };
+      }
+      if (!isRecord(parsed.trip)) {
+        return { error: IMPORT_ERRORS.damaged };
+      }
+      raw = parsed.trip;
+    } else if (parsed.app !== undefined || typeof parsed.name !== "string" || !Array.isArray(parsed.members)) {
+      return { error: IMPORT_ERRORS.notTrip };
+    }
+    if (isNewerVersion(raw.schemaVersion, SCHEMA_VERSION)) {
+      return { error: IMPORT_ERRORS.newer };
+    }
+    return { raw: raw };
+  }
+
+  /**
+   * Read a trip from the text of a file made by "Export trip" (a bare trip object is
+   * also accepted). The file is untrusted: it is size-limited, parsed as plain JSON and
+   * checked with the same validation as a saved trip.
+   * @param {*} text - File contents.
+   * @returns {{ok:true,trip:object}|{ok:false,error:string}} The migrated trip, or a
+   *   short message to show the user.
+   */
+  function parseImport(text) {
+    if (typeof text !== "string") {
+      return importFailure(IMPORT_ERRORS.unreadable);
+    }
+    if (text.length > MAX_IMPORT_SIZE) {
+      return importFailure(IMPORT_ERRORS.tooLarge);
+    }
+    let parsed;
+    try {
+      parsed = parseJsonRefusingUnsafeKeys(text.replace(/^﻿/, ""));
+    } catch {
+      return importFailure(IMPORT_ERRORS.notJson);
+    }
+    if (!isRecord(parsed.value)) {
+      return importFailure(IMPORT_ERRORS.notTrip);
+    }
+    if (parsed.unsafe) {
+      return importFailure(IMPORT_ERRORS.damaged);
+    }
+    const unwrapped = unwrapImport(parsed.value);
+    if (unwrapped.error) {
+      return importFailure(unwrapped.error);
+    }
+    const trip = migrateTrip(unwrapped.raw);
+    return trip ? { ok: true, trip: trip } : importFailure(IMPORT_ERRORS.damaged);
   }
 
   return {
@@ -1397,5 +1494,8 @@
     prepareSave: prepareSave,
     computeSettlements: computeSettlements,
     buildExport: buildExport,
+    MAX_IMPORT_SIZE: MAX_IMPORT_SIZE,
+    IMPORT_ERRORS: IMPORT_ERRORS,
+    parseImport: parseImport,
   };
 });

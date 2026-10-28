@@ -34,6 +34,11 @@
       <button type="button" id="dismiss-conflict" class="notice-dismiss">Reload</button>
     </div>
   </div>
+  <div id="import-error" class="notice notice-warning" role="alert" hidden>
+    <p id="import-error-text" class="notice-text"></p>
+    <button type="button" id="dismiss-import-error" class="notice-dismiss" aria-label="Dismiss import error">Dismiss</button>
+  </div>
+  <input type="file" id="import-file" class="sr-only" accept=".json,application/json" tabindex="-1" aria-label="FairShare trip file to import">
 
   <p id="app-toast-live" class="sr-only" role="status" aria-live="polite"></p>
   <div id="app-toast" class="app-toast" hidden>
@@ -96,6 +101,10 @@
         <p class="error" id="create-error" aria-live="polite" hidden></p>
 
         <button id="create-trip" type="button" class="btn btn-primary btn-block">Create trip</button>
+        <div class="setup-import">
+          <p id="import-trip-hint" class="muted">Have a trip exported from FairShare? Restore it or move it to this device.</p>
+          <button id="import-trip-setup" type="button" class="btn btn-secondary btn-block" aria-describedby="import-trip-hint">Import a trip</button>
+        </div>
       </div>
     </section>
 
@@ -112,6 +121,7 @@
            </button>
            <div id="trip-menu" class="trip-menu" role="menu" aria-label="Trip options" hidden>
               <button type="button" id="export-trip" class="trip-menu-item" role="menuitem" tabindex="-1">Export trip</button>
+              <button type="button" id="import-trip" class="trip-menu-item" role="menuitem" tabindex="-1">Import trip</button>
               <button type="button" id="record-payment-menu" class="trip-menu-item" role="menuitem" tabindex="-1">Record a payment</button>
               <button type="button" id="new-trip" class="trip-menu-item" role="menuitem" tabindex="-1">New trip</button>
            </div>
@@ -140,6 +150,19 @@
             <button type="button" id="confirm-export-start" class="btn btn-primary">Export and start new</button>
             <button type="button" id="confirm-start-new" class="btn btn-secondary">Start new without exporting</button>
             <button type="button" id="confirm-cancel" class="btn btn-ghost">Cancel</button>
+          </div>
+        </div>
+      </dialog>
+      <dialog id="import-dialog" class="expense-dialog new-trip-dialog" aria-labelledby="import-dialog-title" aria-describedby="import-dialog-text">
+        <div class="sheet-grab" aria-hidden="true"></div>
+        <div class="new-trip-dialog-content">
+          <h2 id="import-dialog-title">Replace this trip?</h2>
+          <p id="import-dialog-text" class="muted"></p>
+          <p id="import-dialog-error" class="dialog-save-error" role="alert" hidden></p>
+          <div class="new-trip-dialog-actions">
+            <button type="button" id="import-export-replace" class="btn btn-primary">Export and replace</button>
+            <button type="button" id="import-replace" class="btn btn-secondary">Replace without exporting</button>
+            <button type="button" id="import-cancel" class="btn btn-ghost">Cancel</button>
           </div>
         </div>
       </dialog>

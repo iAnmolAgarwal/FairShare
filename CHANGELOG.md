@@ -20,6 +20,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A new trip defaults to the currency of the browser's region (for example en-GB to GBP,
   de to EUR, ja to JPY), falling back to USD. The rule lives in `defaultCurrencyForLocale`
   in core.js and is tested.
+- Import trip: load a file made by Export trip to restore an old trip or move one to
+  another device, from "Import trip" in the trip menu or "Import a trip" on the start
+  screen. The file never leaves the browser. `parseImport` in core.js limits it to 2 MB,
+  refuses `__proto__`, `constructor` and `prototype` keys, and checks the trip like a
+  saved one (members, expenses, payments, currency and amount limits), with a short
+  reason when it cannot be used: not valid JSON, too large, from a newer FairShare, not a
+  FairShare trip, or damaged. Replacing a trip asks first and offers to export it; the
+  replaced trip is kept as the recovery copy, the save goes through the usual check for
+  changes in another tab, and the "Imported" message has Undo.
 
 ### Changed
 

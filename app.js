@@ -192,6 +192,18 @@
   const confirmExportStart = document.getElementById("confirm-export-start");
   const confirmStartNew = document.getElementById("confirm-start-new");
   const confirmCancel = document.getElementById("confirm-cancel");
+  const importTripBtn = document.getElementById("import-trip");
+  const importTripSetupBtn = document.getElementById("import-trip-setup");
+  const importFileInput = document.getElementById("import-file");
+  const importError = document.getElementById("import-error");
+  const importErrorText = document.getElementById("import-error-text");
+  const dismissImportErrorBtn = document.getElementById("dismiss-import-error");
+  const importDialog = document.getElementById("import-dialog");
+  const importDialogText = document.getElementById("import-dialog-text");
+  const importDialogError = document.getElementById("import-dialog-error");
+  const importExportReplaceBtn = document.getElementById("import-export-replace");
+  const importReplaceBtn = document.getElementById("import-replace");
+  const importCancelBtn = document.getElementById("import-cancel");
   const tripMenuItems = Array.from(
     tripMenu.querySelectorAll('[role="menuitem"]'),
   );
@@ -202,6 +214,11 @@
   // Touch browsers keep :hover on the last tapped element, so only real hover pauses the toast.
   const HOVER_QUERY = window.matchMedia ? window.matchMedia("(hover: hover)") : null;
   let newTripDialogOpener = null;
+  // The control that asked for a file, and the trip read from it while the user
+  // confirms replacing the current one.
+  let importOpener = null;
+  let importDialogOpener = null;
+  let pendingImport = null;
   const allElements = [
     setupScreen, workspaceScreen,
     recoveryNotice, recoveryNoticeText, dismissRecoveryBtn,
@@ -226,7 +243,9 @@
     expenseFormTitle, saveExpenseBtn, deleteExpenseDialogBtn, dialogSaveError,
     expenseListEl, expensesEmptyEl, exportTripBtn, newTripBtn,
     recordPaymentMenu, confirmExportStart, confirmStartNew, confirmCancel,
-    appToastLive,
+    appToastLive, importTripBtn, importTripSetupBtn, importFileInput, importError,
+    importErrorText, dismissImportErrorBtn, importDialog, importDialogText,
+    importDialogError, importExportReplaceBtn, importReplaceBtn, importCancelBtn,
   ];
   if (allElements.some((el) => el === null)) {
     showLoadFailure();
@@ -1575,6 +1594,10 @@
     if (!pendingUndo) {
       return;
     }
+    if (pendingUndo.previousTrip) {
+      undoImport(pendingUndo.previousTrip);
+      return;
+    }
     if (pendingUndo.payment) {
       const payment = pendingUndo.payment;
       const recorded = pendingUndo.paymentRecorded;
@@ -2072,6 +2095,194 @@
     }
     newTripDialogOpener = null;
     pendingAnnouncement = null;
+  });
+
+  function chooseImportFile(opener) {
+    importOpener = opener;
+    // Cleared first so choosing the same file again still fires "change".
+    importFileInput.value = "";
+    importFileInput.click();
+  }
+
+  function readFileText(file) {
+    if (typeof file.text === "function") {
+      return file.text();
+    }
+    return new Promise((resolve, reject) => {
+      const reader = new window.FileReader();
+      reader.addEventListener("load", () => resolve(reader.result));
+      reader.addEventListener("error", () => reject(reader.error));
+      reader.readAsText(file);
+    });
+  }
+
+  function showImportError(message) {
+    importErrorText.textContent = message;
+    importError.hidden = false;
+    dismissImportErrorBtn.focus();
+  }
+
+  function hideImportError() {
+    importError.hidden = true;
+    importErrorText.textContent = "";
+  }
+
+  function handleImportFile() {
+    const file = importFileInput.files && importFileInput.files[0];
+    if (!file) {
+      return;
+    }
+    hideImportError();
+    if (file.size > Core.MAX_IMPORT_SIZE) {
+      showImportError(Core.IMPORT_ERRORS.tooLarge);
+      return;
+    }
+    readFileText(file)
+      .then(Core.parseImport, () => ({ ok: false, error: Core.IMPORT_ERRORS.unreadable }))
+      .then(receiveImport);
+  }
+
+  function receiveImport(result) {
+    if (!result.ok) {
+      showImportError(result.error);
+      return;
+    }
+    if (state) {
+      openImportDialog(result.trip);
+      return;
+    }
+    if (!saveState(result.trip)) {
+      // The storage or conflict notice above says why.
+      showImportError("The trip could not be imported.");
+      return;
+    }
+    showImportedTrip(null);
+  }
+
+  function openImportDialog(trip) {
+    pendingImport = trip;
+    importDialogOpener = importOpener;
+    importDialogText.textContent =
+      "Importing " +
+      trip.name +
+      " replaces " +
+      state.name +
+      " on this device. Export a copy first if you might need it; you can also undo the import.";
+    importDialogError.hidden = true;
+    importDialog.showModal();
+    importCancelBtn.focus();
+  }
+
+  function refuseImport(message) {
+    importDialogError.textContent = message;
+    importDialogError.hidden = false;
+    return false;
+  }
+
+  // Returns true once the imported trip is saved; otherwise explains why inside the dialog.
+  function replaceWithImport(exportFirst) {
+    importDialogError.hidden = true;
+    const stored = readStoredForReset();
+    if (!stored.ok) {
+      return refuseImport("Could not read the saved trip on this device. The current trip was kept.");
+    }
+    if (stored.changed) {
+      return refuseImport("This trip changed in another tab. Reload before importing.");
+    }
+    if (exportFirst && !exportTrip()) {
+      return refuseImport("Could not export the trip. The current trip was kept.");
+    }
+    try {
+      if (stored.raw) {
+        // The same recovery copy "New trip" keeps, for when Undo is no longer offered.
+        localStorage.setItem(LAST_REMOVED_KEY, stored.raw);
+      }
+    } catch {
+      return refuseImport("Could not keep a recovery copy on this device. The current trip was kept.");
+    }
+    if (!saveState(pendingImport)) {
+      return refuseImport(lastSaveError);
+    }
+    return true;
+  }
+
+  function confirmImport(exportFirst) {
+    const previousTrip = JSON.parse(JSON.stringify(state));
+    if (!replaceWithImport(exportFirst)) {
+      return;
+    }
+    importDialogOpener = null;
+    importDialog.close();
+    showImportedTrip(previousTrip);
+  }
+
+  function showTripWorkspace() {
+    selectCurrency(state.currency);
+    workspaceScreen.hidden = false;
+    setupScreen.hidden = true;
+    exitEditMode();
+    resetExpenseForm();
+    renderWorkspace();
+    switchView("expenses");
+  }
+
+  function showImportedTrip(previousTrip) {
+    clearUndoBar();
+    hideImportError();
+    showTripWorkspace();
+    if (previousTrip) {
+      pendingUndo = { previousTrip: previousTrip };
+    }
+    showToast("Imported " + state.name, Boolean(previousTrip));
+  }
+
+  // Saved like any other change, so a trip changed in another tab is never overwritten.
+  function undoImport(previousTrip) {
+    if (!saveState(previousTrip)) {
+      return;
+    }
+    clearUndoBar();
+    showTripWorkspace();
+    tripTitleEl.focus();
+    announce("Import undone. " + previousTrip.name + " is back.");
+  }
+
+  importTripBtn.addEventListener("click", () => {
+    chooseImportFile(tripOptionsBtn);
+  });
+  importTripSetupBtn.addEventListener("click", () => {
+    chooseImportFile(importTripSetupBtn);
+  });
+  importFileInput.addEventListener("change", handleImportFile);
+  dismissImportErrorBtn.addEventListener("click", () => {
+    hideImportError();
+    restoreFocus(importOpener);
+  });
+  importExportReplaceBtn.addEventListener("click", () => {
+    confirmImport(true);
+  });
+  importReplaceBtn.addEventListener("click", () => {
+    confirmImport(false);
+  });
+  importCancelBtn.addEventListener("click", () => {
+    importDialog.close();
+  });
+  importDialog.addEventListener("cancel", (event) => {
+    event.preventDefault();
+    importDialog.close();
+  });
+  importDialog.addEventListener("click", (event) => {
+    if (isBackdropClick(importDialog, event)) {
+      importDialog.close();
+    }
+  });
+  importDialog.addEventListener("close", () => {
+    importDialogError.hidden = true;
+    pendingImport = null;
+    if (importDialogOpener) {
+      restoreFocus(importDialogOpener);
+    }
+    importDialogOpener = null;
   });
 
   settleConfirmBtn.addEventListener("click", () => {

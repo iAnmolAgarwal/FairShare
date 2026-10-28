@@ -953,3 +953,178 @@ test('app smoke: an expense that would overflow the trip total is refused with a
   assert.equal(errors.length, 0, 'no console errors: ' + errors.join(' | '));
   dom.window.close();
 });
+
+const IMPORTED = {
+  schemaVersion: 4, id: 'trip-cccccccc', name: 'Lisbon', currency: 'EUR', members: ['Ana', 'Ben'],
+  expenses: [{ seq: 1, description: 'Hotel', amountPaise: 45000, payer: 'Ana', date: '2026-03-01', participants: ['Ana', 'Ben'] }],
+  nextSeq: 3, payments: [{ seq: 2, from: 'Ben', to: 'Ana', amountPaise: 5000, date: '2026-03-02' }],
+};
+const exportFileText = (trip) => JSON.stringify({ app: 'FairShare', exportVersion: 1, schemaVersion: 4, exportedAt: '2026-03-05T10:00:00.000Z', trip: trip }, null, 2);
+
+// Browsers cannot script the file picker, so the chosen file is set on the input directly.
+function chooseFile(dom, text, size) {
+  const win = dom.window;
+  const input = win.document.getElementById('import-file');
+  const file = new win.File([text], 'trip.json', { type: 'application/json' });
+  if (size !== undefined) {
+    Object.defineProperty(file, 'size', { value: size });
+  }
+  Object.defineProperty(input, 'files', { value: [file], configurable: true });
+  input.dispatchEvent(new win.Event('change', { bubbles: true }));
+}
+
+// announce() refills the live region after 50 ms.
+const announced = (win) => new Promise((resolve) => win.setTimeout(resolve, 60));
+
+async function settle(win) {
+  for (let i = 0; i < 5; i += 1) {
+    await tick(win);
+  }
+}
+
+test('app smoke: importing a trip with no trip saved opens it on the Expenses view', async () => {
+  const { dom, errors } = page();
+  const doc = dom.window.document;
+  const input = doc.getElementById('import-file');
+  let pickerOpened = 0;
+  input.click = () => { pickerOpened += 1; };
+  assert.equal(input.type, 'file');
+  assert.equal(input.accept, '.json,application/json');
+  doc.getElementById('import-trip-setup').click();
+  assert.equal(pickerOpened, 1, 'the Import a trip button opens the file picker');
+  chooseFile(dom, exportFileText(IMPORTED));
+  await settle(dom.window);
+  assert.equal(doc.getElementById('workspace-screen').hidden, false);
+  assert.equal(doc.getElementById('setup-screen').hidden, true);
+  assert.equal(doc.getElementById('trip-title').textContent, 'Lisbon');
+  assert.equal(dom.window.location.hash, '#expenses');
+  assert.equal(doc.activeElement.id, 'view-expenses-title');
+  assert.equal(doc.querySelectorAll('#expense-list li').length, 2, 'expense and payment listed');
+  assert.equal(doc.getElementById('app-toast-text').textContent, 'Imported Lisbon');
+  assert.equal(doc.getElementById('app-toast-undo').hidden, true, 'nothing to undo');
+  await announced(dom.window);
+  assert.equal(doc.getElementById('app-toast-live').textContent, 'Imported Lisbon', 'announced');
+  const stored = JSON.parse(dom.window.localStorage.getItem(KEY));
+  assert.equal(stored.name, 'Lisbon');
+  assert.equal(stored.id, 'trip-cccccccc');
+  assert.equal(stored.revision, 1);
+  assert.equal(errors.length, 0, 'no console errors: ' + errors.join(' | '));
+  dom.window.close();
+});
+
+test('app smoke: importing over a trip asks first, keeps a recovery copy, and Undo restores it', async () => {
+  const { dom, errors } = page(seedTrip());
+  const doc = dom.window.document;
+  doc.getElementById('import-file').click = () => {};
+  doc.getElementById('trip-options').click();
+  const items = Array.from(doc.querySelectorAll('#trip-menu [role="menuitem"]')).map((item) => item.id);
+  assert.deepEqual(items.slice(0, 2), ['export-trip', 'import-trip'], 'Import trip sits next to Export trip');
+  doc.getElementById('import-trip').click();
+  chooseFile(dom, exportFileText(IMPORTED));
+  await settle(dom.window);
+  const dialog = doc.getElementById('import-dialog');
+  assert.equal(dialog.open, true, 'replacing asks first');
+  assert.match(doc.getElementById('import-dialog-text').textContent, /Importing Lisbon replaces Seeded/);
+  assert.equal(doc.activeElement.id, 'import-cancel');
+  assert.equal(JSON.parse(dom.window.localStorage.getItem(KEY)).name, 'Seeded', 'nothing replaced yet');
+
+  doc.getElementById('import-replace').click();
+  await settle(dom.window);
+  assert.equal(dialog.open, false);
+  assert.equal(doc.getElementById('trip-title').textContent, 'Lisbon');
+  const imported = JSON.parse(dom.window.localStorage.getItem(KEY));
+  assert.equal(imported.name, 'Lisbon');
+  assert.equal(imported.revision, 2, 'saved through the revision check');
+  assert.equal(JSON.parse(dom.window.localStorage.getItem('fairshare.lastRemoved.v1')).name, 'Seeded');
+  assert.equal(doc.getElementById('app-toast-text').textContent, 'Imported Lisbon');
+  assert.equal(doc.getElementById('app-toast-undo').hidden, false);
+  assert.equal(doc.activeElement.id, 'app-toast-undo', 'focus stays on Undo after the dialog closes');
+
+  doc.getElementById('app-toast-undo').click();
+  await settle(dom.window);
+  const restored = JSON.parse(dom.window.localStorage.getItem(KEY));
+  assert.equal(restored.name, 'Seeded');
+  assert.equal(restored.id, 'trip-aaaaaaaa');
+  assert.equal(restored.revision, 3);
+  assert.deepEqual(restored.payments, JSON.parse(seedTrip()).payments);
+  assert.equal(doc.getElementById('trip-title').textContent, 'Seeded');
+  assert.equal(doc.activeElement.id, 'trip-title');
+  assert.equal(doc.getElementById('app-toast').hidden, true);
+  await announced(dom.window);
+  assert.match(doc.getElementById('app-toast-live').textContent, /Import undone\. Seeded is back\./);
+  assert.equal(errors.length, 0, 'no console errors: ' + errors.join(' | '));
+  dom.window.close();
+});
+
+test('app smoke: Export and replace exports first; Cancel and other-tab changes keep the trip', async () => {
+  const { dom, errors } = page(seedTrip());
+  const doc = dom.window.document;
+  let exports = 0;
+  dom.window.URL.createObjectURL = () => { exports += 1; return 'blob:x'; };
+  dom.window.URL.revokeObjectURL = () => {};
+  doc.getElementById('import-file').click = () => {};
+  const mine = dom.window.localStorage.getItem(KEY);
+
+  doc.getElementById('trip-options').click();
+  doc.getElementById('import-trip').click();
+  chooseFile(dom, exportFileText(IMPORTED));
+  await settle(dom.window);
+  doc.getElementById('import-cancel').click();
+  await settle(dom.window);
+  assert.equal(doc.getElementById('import-dialog').open, false);
+  assert.equal(doc.activeElement.id, 'trip-options', 'focus returns to the menu button');
+  assert.equal(dom.window.localStorage.getItem(KEY), mine, 'Cancel keeps the trip');
+
+  doc.getElementById('import-trip').click();
+  chooseFile(dom, exportFileText(IMPORTED));
+  await settle(dom.window);
+  dom.window.localStorage.setItem(KEY, seedTrip({ id: 'trip-bbbbbbbb', name: 'Other tab' }));
+  doc.getElementById('import-export-replace').click();
+  assert.equal(exports, 0, 'nothing exported when the trip changed elsewhere');
+  assert.match(doc.getElementById('import-dialog-error').textContent, /changed in another tab/);
+  assert.equal(JSON.parse(dom.window.localStorage.getItem(KEY)).name, 'Other tab', 'other tab trip kept');
+
+  dom.window.localStorage.setItem(KEY, mine);
+  // Checked without waiting: jsdom cannot follow the download link the export clicks.
+  doc.getElementById('import-export-replace').click();
+  assert.equal(exports, 1, 'exported before replacing');
+  assert.equal(doc.getElementById('import-dialog').open, false);
+  assert.equal(JSON.parse(dom.window.localStorage.getItem(KEY)).name, 'Lisbon');
+  assert.equal(errors.length, 0, 'no console errors: ' + errors.join(' | '));
+  dom.window.close();
+});
+
+test('app smoke: a file that cannot be imported shows an alert and changes nothing', async () => {
+  const { dom, errors } = page(seedTrip());
+  const doc = dom.window.document;
+  const Core = dom.window.FairShareCore;
+  doc.getElementById('import-file').click = () => {};
+  const before = dom.window.localStorage.getItem(KEY);
+  const notice = doc.getElementById('import-error');
+  assert.equal(notice.getAttribute('role'), 'alert');
+
+  doc.getElementById('trip-options').click();
+  doc.getElementById('import-trip').click();
+  chooseFile(dom, 'this is not json');
+  await settle(dom.window);
+  assert.equal(notice.hidden, false);
+  assert.equal(doc.getElementById('import-error-text').textContent, Core.IMPORT_ERRORS.notJson);
+  assert.equal(doc.activeElement.id, 'dismiss-import-error', 'focus moves to the alert');
+  assert.equal(doc.getElementById('import-dialog').open, false, 'no replace dialog for a bad file');
+
+  chooseFile(dom, exportFileText(Object.assign({}, IMPORTED, { schemaVersion: 99 })));
+  await settle(dom.window);
+  assert.equal(doc.getElementById('import-error-text').textContent, Core.IMPORT_ERRORS.newer);
+
+  chooseFile(dom, exportFileText(IMPORTED), Core.MAX_IMPORT_SIZE + 1);
+  await settle(dom.window);
+  assert.equal(doc.getElementById('import-error-text').textContent, Core.IMPORT_ERRORS.tooLarge);
+
+  doc.getElementById('dismiss-import-error').click();
+  assert.equal(notice.hidden, true);
+  assert.equal(doc.activeElement.id, 'trip-options', 'focus returns to where the import started');
+  assert.equal(dom.window.localStorage.getItem(KEY), before, 'saved trip untouched');
+  assert.equal(doc.getElementById('trip-title').textContent, 'Seeded');
+  assert.equal(errors.length, 0, 'no console errors: ' + errors.join(' | '));
+  dom.window.close();
+});
