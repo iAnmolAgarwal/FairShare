@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<meta name="theme-color" content="#fafaf8" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#0e100f" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f5f4f0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0b0e0d" media="(prefers-color-scheme: dark)">
 <meta name="description" content="FairShare splits trip expenses between friends and shows who owes what, entirely in your browser.">
 <title>FairShare - split trip costs fairly</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Crect%20width='32'%20height='32'%20rx='7'%20fill='%234f46e5'/%3E%3Ctext%20x='16'%20y='23'%20font-size='19'%20text-anchor='middle'%20fill='%23ffffff'%20font-family='Arial,sans-serif'%20font-weight='bold'%3EF%3C/text%3E%3C/svg%3E">
@@ -50,7 +50,7 @@
       <div class="setup-hero">
         <div class="hero-bg" aria-hidden="true"><i class="hero-field hero-field-blush"></i><i class="hero-field hero-field-gold"></i><i class="hero-field hero-field-blue"></i><i class="hero-streak hero-streak-one"></i><i class="hero-streak hero-streak-two"></i><i class="hero-ring hero-ring-one"></i><i class="hero-ring hero-ring-two"></i><i class="hero-ring hero-ring-three"></i><svg class="hero-grain" aria-hidden="true" focusable="false"><filter id="hero-grain-noise"><feTurbulence type="fractalNoise" baseFrequency=".8" numOctaves="3" stitchTiles="stitch"></feTurbulence></filter><rect width="100%" height="100%" filter="url(#hero-grain-noise)" opacity=".12"></rect></svg></div>
         <div class="hero-inner">
-          <div class="hero-nav"><span>FairShare</span></div>
+          <div class="hero-nav"><span class="brand"><svg class="brand-mark" aria-hidden="true" focusable="false" viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="10" ry="4.2" transform="rotate(-18 12 12)"></ellipse><circle cx="12" cy="12" r="3.2"></circle></svg>FairShare</span><span class="hero-nav-note">Private by design</span></div>
           <div class="hero-grid">
             <div class="hero-copy">
               <p class="hero-eyebrow">TRIP EXPENSE SPLITTER</p>
@@ -73,7 +73,15 @@
         </div>
       </div>
       <div class="panel">
-        <h2 id="setup-title">Start a trip</h2>
+        <h2 id="setup-title">Set up your trip</h2>
+        <div class="setup-intro">
+          <p>Name the trip, pick its currency and add everyone who's coming. You can log the first expense straight away.</p>
+          <ul class="setup-points">
+            <li>Any currency, groups of up to 10</li>
+            <li>No account, nothing leaves this device</li>
+            <li>Export a file to back up or move a trip</li>
+          </ul>
+        </div>
 
         <div class="field">
           <label for="trip-name" id="trip-name-label">Trip name</label>
@@ -109,28 +117,38 @@
     </section>
 
 <section id="workspace-screen" hidden aria-labelledby="trip-title">
-       <div class="trip-header">
-         <div class="trip-header-copy">
-           <span class="workspace-wordmark">FairShare</span>
-           <h1 id="trip-title" tabindex="-1"></h1>
-           <p class="muted" id="trip-summary"></p>
-         </div>
-         <div class="trip-menu-wrap">
-           <button type="button" id="trip-options" class="trip-options" aria-label="Trip options" aria-haspopup="menu" aria-expanded="false">
-             <svg aria-hidden="true" viewBox="0 0 4 20" focusable="false"><circle cx="2" cy="2" r="2"></circle><circle cx="2" cy="10" r="2"></circle><circle cx="2" cy="18" r="2"></circle></svg>
-           </button>
-           <div id="trip-menu" class="trip-menu" role="menu" aria-label="Trip options" hidden>
-              <button type="button" id="export-trip" class="trip-menu-item" role="menuitem" tabindex="-1">Export trip</button>
-              <button type="button" id="import-trip" class="trip-menu-item" role="menuitem" tabindex="-1">Import trip</button>
-              <button type="button" id="record-payment-menu" class="trip-menu-item" role="menuitem" tabindex="-1">Record a payment</button>
-              <button type="button" id="new-trip" class="trip-menu-item" role="menuitem" tabindex="-1">New trip</button>
+       <header class="trip-header">
+         <div class="band-bg" aria-hidden="true"><i class="band-field band-field-blush"></i><i class="band-field band-field-gold"></i><i class="band-ring band-ring-one"></i><i class="band-ring band-ring-two"></i></div>
+         <div class="trip-header-top">
+           <span class="workspace-wordmark"><svg class="brand-mark" aria-hidden="true" focusable="false" viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="10" ry="4.2" transform="rotate(-18 12 12)"></ellipse><circle cx="12" cy="12" r="3.2"></circle></svg>FairShare</span>
+           <div class="trip-menu-wrap">
+             <button type="button" id="trip-options" class="trip-options" aria-label="Trip options" aria-haspopup="menu" aria-expanded="false">
+               <svg aria-hidden="true" viewBox="0 0 4 20" focusable="false"><circle cx="2" cy="2" r="2"></circle><circle cx="2" cy="10" r="2"></circle><circle cx="2" cy="18" r="2"></circle></svg>
+             </button>
+             <div id="trip-menu" class="trip-menu" role="menu" aria-label="Trip options" hidden>
+                <button type="button" id="export-trip" class="trip-menu-item" role="menuitem" tabindex="-1">Export trip</button>
+                <button type="button" id="import-trip" class="trip-menu-item" role="menuitem" tabindex="-1">Import trip</button>
+                <button type="button" id="record-payment-menu" class="trip-menu-item" role="menuitem" tabindex="-1">Record a payment</button>
+                <button type="button" id="new-trip" class="trip-menu-item" role="menuitem" tabindex="-1">New trip</button>
+             </div>
            </div>
          </div>
-       </div>
+         <div class="trip-header-body">
+           <div class="trip-header-copy">
+             <h1 id="trip-title" tabindex="-1"></h1>
+             <p id="trip-summary" class="trip-summary"></p>
+           </div>
+           <div class="trip-total-block">
+             <p class="trip-total-label" id="trip-total-label">Total spent</p>
+             <p class="trip-total" id="trip-total" aria-describedby="trip-total-label"></p>
+           </div>
+         </div>
+       </header>
 
       <dialog id="settle-dialog" class="expense-dialog new-trip-dialog settle-dialog" aria-labelledby="settle-dialog-title" aria-describedby="settle-dialog-amount settle-dialog-text">
         <div class="sheet-grab" aria-hidden="true"></div>
         <div class="new-trip-dialog-content">
+          <div id="settle-dialog-pair" class="settle-pair" aria-hidden="true"></div>
           <h2 id="settle-dialog-title">Mark as paid?</h2>
           <p id="settle-dialog-amount" class="settle-dialog-amount"></p>
           <p id="settle-dialog-text" class="muted"></p>
@@ -174,24 +192,27 @@
       </nav>
 
       <div id="view-expenses" class="view-panel">
-         <h2 id="view-expenses-title" tabindex="-1">Expenses</h2>
+        <div class="view-head">
+          <h2 id="view-expenses-title" tabindex="-1">Expenses</h2>
+          <p id="expenses-stat" class="view-stat"></p>
+        </div>
 
-        <button id="add-expense-fab" type="button" class="fab" aria-label="Add expense">+</button>
+        <button id="add-expense-fab" type="button" class="fab"><svg aria-hidden="true" focusable="false" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg><span class="fab-label">Add expense</span></button>
 
         <dialog id="expense-dialog" class="expense-dialog" aria-labelledby="expense-form-title">
           <form id="expense-form" action="#" method="post">
             <span class="sheet-grab" aria-hidden="true"></span>
             <div class="expense-dialog-header"><h3 id="expense-form-title">Add expense</h3><button type="button" id="delete-expense-dialog" class="delete-dialog-btn" hidden>Delete</button></div>
             <div class="expense-dialog-body">
+            <div class="field field-amount">
+              <label for="expense-amount" id="expense-amount-label">Amount</label>
+              <div class="amount-input"><span id="expense-amount-prefix" class="amount-prefix" aria-hidden="true"></span><input id="expense-amount" aria-label="Amount" aria-labelledby="expense-amount-label" type="text" inputmode="decimal" autocomplete="off" placeholder="0.00" aria-describedby="amount-error split-preview"></div>
+              <p class="error" id="amount-error" aria-live="polite" hidden></p>
+            </div>
             <div class="field">
               <label for="expense-description" id="expense-description-label">Description</label>
               <input id="expense-description" aria-label="Description" aria-labelledby="expense-description-label" type="text" autocomplete="off" placeholder="e.g. Dinner" aria-describedby="description-error">
               <p class="error" id="description-error" aria-live="polite" hidden></p>
-            </div>
-            <div class="field">
-              <label for="expense-amount" id="expense-amount-label">Amount</label>
-              <input id="expense-amount" aria-label="Amount" aria-labelledby="expense-amount-label" type="text" inputmode="decimal" autocomplete="off" placeholder="0.00" aria-describedby="amount-error">
-              <p class="error" id="amount-error" aria-live="polite" hidden></p>
             </div>
             <div class="field">
               <label for="expense-payer" id="expense-payer-label">Paid by</label>
@@ -207,6 +228,7 @@
               <legend>Split between</legend>
               <button type="button" id="participants-toggle" class="participants-toggle">Clear all</button>
               <div id="participant-list" class="participant-list"></div>
+              <p id="split-preview" class="split-preview"></p>
               <p class="error" id="participants-error" aria-live="polite" hidden></p>
             </fieldset>
             </div>
@@ -216,27 +238,41 @@
         </dialog>
 
         <section class="panel" aria-labelledby="view-expenses-title">
-           <div id="expenses-empty" class="expenses-empty"><strong>No expenses yet</strong><span class="muted">Tap + to add the first one.</span><button type="button" id="empty-add-expense" class="btn btn-primary">Add expense</button></div>
+           <div id="expenses-empty" class="expenses-empty"><svg class="orbit-art" aria-hidden="true" focusable="false" viewBox="0 0 120 72"><ellipse cx="60" cy="38" rx="52" ry="16"></ellipse><ellipse cx="60" cy="38" rx="34" ry="10"></ellipse><circle class="orbit-dot" cx="60" cy="38" r="5"></circle><circle class="orbit-dot orbit-dot-soft" cx="104" cy="32" r="3"></circle><circle class="orbit-dot orbit-dot-soft" cx="28" cy="46" r="2.5"></circle></svg><strong>Nothing spent yet</strong><span class="muted">Add the first expense. Split it with everyone, or just the people who were there.</span><button type="button" id="empty-add-expense" class="btn btn-primary">Add expense</button></div>
            <ul id="expense-list" class="expense-list"></ul>
         </section>
       </div>
 
       <div class="summary-col">
        <div id="view-balances" class="view-panel" hidden>
-          <h2 id="view-balances-title" tabindex="-1">Balances</h2>
-         <section class="panel">
-           <div id="balances-empty" class="view-empty" hidden><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="m8 12 2.5 2.5L16 9"></path></svg><strong>Everyone's square.</strong><span class="muted">Add an expense to see balances.</span></div>
+         <div class="view-head">
+           <h2 id="view-balances-title" tabindex="-1">Balances</h2>
+           <p id="balances-stat" class="view-stat"></p>
+         </div>
+         <section class="panel" aria-labelledby="view-balances-title">
+           <div id="balances-empty" class="view-empty" hidden><svg class="orbit-art" aria-hidden="true" focusable="false" viewBox="0 0 120 72"><ellipse cx="60" cy="38" rx="52" ry="16"></ellipse><ellipse cx="60" cy="38" rx="34" ry="10"></ellipse><circle class="orbit-dot" cx="60" cy="38" r="5"></circle><circle class="orbit-dot orbit-dot-soft" cx="104" cy="32" r="3"></circle></svg><strong id="balances-empty-title">No balances yet</strong><span id="balances-empty-text" class="muted">Add an expense to see who owes whom.</span></div>
            <ul id="balance-list" class="balance-list"></ul>
          </section>
        </div>
 
       <div id="view-settle" class="view-panel" hidden>
-         <h2 id="view-settle-title" tabindex="-1">Settle up</h2>
+         <div class="view-head">
+           <h2 id="view-settle-title" tabindex="-1">Settle up</h2>
+           <p id="settle-stat" class="view-stat"></p>
+         </div>
          <section class="panel" aria-labelledby="view-settle-title">
-           <div id="settle-empty" class="view-empty" hidden><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="m8 12 2.5 2.5L16 9"></path></svg><strong>Everyone's square.</strong><span class="muted">Nothing to settle.</span></div>
-            <p id="settle-summary" class="muted settle-summary"></p>
+           <div id="settle-progress" class="settle-progress" hidden>
+             <p class="settle-progress-copy"><span id="settle-summary" class="settle-summary"></span><span id="settle-progress-amount" class="settle-progress-amount"></span></p>
+             <div class="settle-meter" aria-hidden="true"><span id="settle-meter-fill" class="settle-meter-fill"></span></div>
+           </div>
+           <div id="settle-flow" class="settle-flow" aria-hidden="true"></div>
+           <div id="settle-empty" class="view-empty settle-square" hidden>
+             <div class="square-art" aria-hidden="true"><i class="square-ring square-ring-one"></i><i class="square-ring square-ring-two"></i><i class="square-ring square-ring-three"></i><svg viewBox="0 0 24 24" focusable="false"><path d="m7 12.5 3.2 3.2L17 9"></path></svg></div>
+             <strong id="settle-empty-title">Everyone's square.</strong>
+             <span id="settle-empty-text" class="muted">Nothing to settle.</span>
+           </div>
             <p id="settle-hint" class="muted settle-hint"></p>
-            <ul id="settle-list" class="settle-list"></ul>
+            <ul id="settle-list" class="settle-list" aria-labelledby="view-settle-title"></ul>
            <button type="button" id="record-payment" class="btn btn-ghost btn-block">Record a payment</button>
            <button type="button" id="copy-settle" class="btn btn-secondary btn-block copy-settle-btn">Copy summary</button>
          </section>
@@ -258,7 +294,7 @@
            </div>
            <div class="field">
              <label for="payment-amount" id="payment-amount-label">Amount</label>
-             <input id="payment-amount" aria-label="Amount" aria-labelledby="payment-amount-label" type="text" inputmode="decimal" autocomplete="off" placeholder="0.00" aria-describedby="payment-error">
+             <div class="amount-input"><span id="payment-amount-prefix" class="amount-prefix" aria-hidden="true"></span><input id="payment-amount" aria-label="Amount" aria-labelledby="payment-amount-label" type="text" inputmode="decimal" autocomplete="off" placeholder="0.00" aria-describedby="payment-error"></div>
            </div>
            <div class="field">
              <label for="payment-date" id="payment-date-label">Date</label>
