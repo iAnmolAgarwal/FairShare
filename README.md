@@ -17,6 +17,11 @@ FairShare splits the cost of a trip between friends and tells you who owes whom.
 
 **Top 5% of 241 projects.** FairShare placed 11th by Builder score in HackerEarth's [AI Innovation Arena](https://vibecodearena.ai/ai-innovation-arena) on VibeCode Arena (September to October 2026): the last of the 10 runners-up named after the Highest Project Score winner, out of 241 projects on the arena's project leaderboard and 1,726 registered participants (top 1% of everyone who joined). Its final submission scored 100 on every axis of the arena's automated evaluation: security, code quality, correctness, performance and accessibility.
 
+<p align="center">
+  <img src="docs/images/arena-evaluation.png" width="100%" alt="FairShare's evaluation on HackerEarth's VibeCode Arena: overall 100%, with Security, Code Quality, Correctness, Performance and Accessibility each scored 100">
+</p>
+<p align="center"><sub>The arena's automated evaluation of the final submission, as shown on HackerEarth's VibeCode Arena.</sub></p>
+
 ## Try it in 30 seconds
 
 Open **[fairshare-trips.vercel.app](https://fairshare-trips.vercel.app)** on your phone, then:
