@@ -706,6 +706,13 @@
     }
   }
 
+  function focusFirstInvalid(pairs) {
+    const first = pairs.find(([error]) => !error.hidden);
+    if (first) {
+      first[1].focus();
+    }
+  }
+
   function createTrip(initialExpenses) {
     const expenses = Array.isArray(initialExpenses) ? initialExpenses : [];
     clearError(tripNameError);
@@ -737,6 +744,11 @@
       valid = false;
     }
     if (!valid) {
+      focusFirstInvalid([
+        [tripNameError, tripNameInput],
+        [tripCurrencyError, tripCurrencySelect],
+        [memberMinError, memberNameInput],
+      ]);
       return;
     }
     exitEditMode();
@@ -2387,6 +2399,14 @@
   });
   dateInput.addEventListener("input", () => {
     clearError(dateError);
+  });
+
+  [paymentFrom, paymentTo, paymentAmount, paymentDate].forEach((field) => {
+    field.addEventListener(field.tagName === "SELECT" ? "change" : "input", () => {
+      if (!paymentError.hidden) {
+        clearPaymentErrors();
+      }
+    });
   });
 
   copySettleBtn.addEventListener("click", () => {

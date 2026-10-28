@@ -354,6 +354,38 @@ test('app smoke: invalid submit focuses first invalid field', () => {
   dom.window.close();
 });
 
+test('app smoke: setup with missing details focuses the first problem field', () => {
+  const { dom, errors } = page();
+  const doc = dom.window.document;
+  doc.getElementById('create-trip').click();
+  assert.equal(doc.activeElement, doc.getElementById('trip-name'), 'focus on trip name, got: ' + doc.activeElement.id);
+  doc.getElementById('trip-name').value = 'Named';
+  doc.getElementById('create-trip').click();
+  assert.equal(doc.activeElement, doc.getElementById('member-name'), 'focus on member name, got: ' + doc.activeElement.id);
+  assert.equal(errors.length, 0, 'no console errors: ' + errors.join(' | '));
+  dom.window.close();
+});
+
+test('app smoke: a payment error clears once the field is corrected', () => {
+  const { dom, errors } = page();
+  const doc = dom.window.document;
+  addMember(doc, 'A'); addMember(doc, 'B'); createTrip(doc, 'Payment errors');
+  doc.getElementById('record-payment').click();
+  const to = doc.getElementById('payment-to');
+  doc.getElementById('payment-from').value = 'A'; to.value = 'A';
+  doc.getElementById('payment-amount').value = '10';
+  doc.getElementById('payment-form').dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
+  const error = doc.getElementById('payment-error');
+  assert.equal(error.hidden, false, 'same From and To shows an error');
+  assert.equal(to.getAttribute('aria-invalid'), 'true');
+  to.value = 'B';
+  to.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+  assert.equal(error.hidden, true, 'error clears after the fix');
+  assert.equal(to.hasAttribute('aria-invalid'), false);
+  assert.equal(errors.length, 0, 'no console errors: ' + errors.join(' | '));
+  dom.window.close();
+});
+
 test('app smoke: Cancel button closes the dialog without adding an expense', () => {
   const { dom, errors } = page();
   const doc = dom.window.document;
