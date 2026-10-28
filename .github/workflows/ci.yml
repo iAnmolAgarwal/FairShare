@@ -18,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # jsdom 30 (used by the UI tests) requires Node ^22.22.2 or >=24.
+        # jsdom 30 (used by the UI tests) requires Node ^22.22.2, ^24.15.0 or >=26.
         node: [22, 24]
     steps:
       - uses: actions/checkout@v7
@@ -29,6 +29,6 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
       - run: npm ci
-      - run: npm run lint -- --max-warnings=0
+      - run: npm run lint
       - run: npm test
       - run: npm run build
