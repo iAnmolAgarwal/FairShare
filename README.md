@@ -6,7 +6,7 @@
   <a href="https://fairshare-trips.vercel.app"><img src="https://img.shields.io/badge/live-fairshare--trips.vercel.app-4d7c0f" alt="Live at fairshare-trips.vercel.app"></a>
   <img src="https://img.shields.io/badge/AI%20Innovation%20Arena-11th%20of%20241%20%C2%B7%20top%205%25-2563EB" alt="AI Innovation Arena: 11th of 241 submitted projects by Builder score, top 5 percent">
   <img src="https://img.shields.io/badge/arena%20evaluation-100%2F100-111827" alt="Scored 100 out of 100 on the arena's security, code quality, correctness, performance and accessibility evaluation">
-  <img src="https://img.shields.io/badge/tests-163%20passing-4B5563" alt="163 tests pass">
+  <img src="https://img.shields.io/badge/tests-178%20passing-4B5563" alt="178 tests pass">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-9CA3AF" alt="License: MIT"></a>
 </p>
 
@@ -49,7 +49,7 @@ FairShare is the version you can open in a browser tab on the beach. One person 
     <img src="docs/images/desktop-light.png" width="100%" alt="The desktop dashboard with expenses, balances and the settle-up plan on one screen">
   </picture>
 </p>
-<p align="center"><sub>Screenshots use demo data. Aarav, Diya, Kabir and Meera are not real people, and did not actually go parasailing.</sub></p>
+<p align="center"><sub>Screenshots use demo data. Sam, Priya, Jonas and Mei are not real people, and nobody really ate €212.40 of seafood.</sub></p>
 
 - trips of 2 to 10 people, with names checked for blanks and duplicates (ignoring case)
 - expenses split equally between everyone or only the people who were there
@@ -60,8 +60,10 @@ FairShare is the version you can open in a browser tab on the beach. One person 
 - edit any expense or payment later; deletes come with a 10-second **Undo**
 - **Copy summary** puts the plan on your clipboard as plain text, ready for the group chat
 - a newest-first expense list on the phone, and a desktop dashboard that shows everything at once
+- a settle-up diagram that draws each payment from payer to payee, and an "Everyone's square" moment when the trip is settled
+- one colour per person, the same on every screen
 - light and dark themes that follow your system, reduced motion when you ask for it
-- export the whole trip as JSON, for your records or a spreadsheet
+- export the whole trip as JSON, and import it again to restore it or move it to another device; imports are size-limited and checked like a saved trip
 - a warning instead of silent data loss when the same trip is open in two tabs
 
 ## How it works
@@ -72,25 +74,25 @@ Every amount is stored as an integer number of minor units (cents for dollars, p
 
 **Why the plan is short.** The settle-up pass lines up who owes, largest debt first, and who is owed, largest credit first, then pays the head of one list to the head of the other with the smaller of the two amounts. Each payment clears at least one person, so a trip of *n* people needs at most *n* − 1 payments.
 
-A worked example, using the demo trip from the screenshots before anyone has paid anyone back. That trip happens to be a Goa trip in rupees; the maths is the same in any currency.
+A worked example, using the demo trip from the screenshots before anyone has paid anyone back. It is a Lisbon trip in euros; the maths is the same in any currency.
 
 | Expense | Paid by | Split between | Amount |
 |---|---|---|---:|
-| Beach shack dinner | Aarav | everyone | ₹4,800 |
-| Scooter rentals | Diya | everyone | ₹2,400 |
-| Parasailing | Kabir | Aarav, Kabir, Meera | ₹3,600 |
-| Airbnb | Meera | everyone | ₹18,000 |
-| Groceries | Diya | everyone | ₹1,260 |
-| Club entry | Aarav | Aarav, Diya | ₹2,000 |
+| Alfama apartment | Sam | everyone | €840.00 |
+| Pastéis de Belém | Priya | everyone | €18.60 |
+| Sintra train | Jonas | Sam, Priya, Jonas | €31.20 |
+| Seafood dinner | Mei | everyone | €212.40 |
+| Tram 28 | Sam | Sam, Mei | €12.00 |
+| Fado night | Priya | Priya, Jonas, Mei | €96.00 |
 
 | Member | Balance | Settle up |
 |---|---:|---|
-| Aarav | owes ₹2,015 | pays Meera ₹2,015 |
-| Diya | owes ₹3,955 | pays Meera ₹3,955 |
-| Kabir | owes ₹4,215 | pays Meera ₹4,215 |
-| Meera | gets back **₹10,185** | receives three payments |
+| Sam | gets back **€567.85** | receives three payments |
+| Priya | owes €195.55 | pays Sam €195.55 |
+| Jonas | owes €278.95 | pays Sam €278.95 |
+| Mei | owes €93.35 | pays Sam €93.35 |
 
-Four people, three payments, and the balances sum to zero. In the screenshots Kabir has already paid Meera, so the plan is down to two. These numbers come straight from `computeBalances` and `computeSettlements` in [`core.js`](core.js).
+Four people, three payments, and the balances sum to zero. In the screenshots Jonas has already paid Sam, so the plan is down to two. These numbers come straight from `computeBalances` and `computeSettlements` in [`core.js`](core.js).
 
 ## Architecture
 
@@ -111,13 +113,13 @@ For local development, [`server.js`](server.js) is a small static server that on
 - **No backend.** The live site is four static files: no server-side code, no database, no API.
 - **No accounts, analytics, tracking or ads.** The page makes no network requests after it loads.
 - **Data stays on your device.** Trips are kept in this browser's `localStorage` and nowhere else. Clearing site data deletes them, so export a trip you care about.
-- **You can read it.** About 3,300 lines of plain JavaScript, not minified or bundled. The build only copies the files and stamps cache-busting hashes.
+- **You can read it.** About 4,800 lines of plain JavaScript, not minified or bundled. The build only copies the files and stamps cache-busting hashes.
 
 > **One phone, one copy.** Because nothing syncs, the trip lives on whichever device created it. Copy the summary into the group chat (or share the exported JSON) at the end.
 
 ## Quality
 
-- 163 tests on Node's built-in runner: unit tests for the money logic, jsdom smoke tests for the UI, and integration tests for the dev server
+- 178 tests on Node's built-in runner: unit tests for the money logic, jsdom smoke tests for the UI, and integration tests for the dev server
 - ESLint with zero warnings, run in CI on Node 22 and 24 along with the tests and the build
 - 100/100 on the AI Innovation Arena's automated evaluation (security, code quality, correctness, performance, accessibility)
 - Lighthouse 100 for accessibility, best practices and SEO on mobile and desktop
@@ -127,14 +129,14 @@ For local development, [`server.js`](server.js) is a small static server that on
 <summary><b>Lighthouse</b></summary>
 <br>
 
-Lighthouse 12.8, local build, 28 October 2026. Mobile uses simulated throttling.
+Lighthouse 12.8, local build, 29 October 2026. Mobile uses simulated throttling; its performance score was 97 to 99 across three runs, and the table shows the lowest.
 
 | | Performance | Accessibility | Best practices | SEO |
 |---|---:|---:|---:|---:|
-| Mobile | 99 | 100 | 100 | 100 |
+| Mobile | 97 | 100 | 100 | 100 |
 | Desktop | 100 | 100 | 100 | 100 |
 
-Largest contentful paint is 1.8 s on mobile and 0.4 s on desktop, with 0 ms of blocking time and no layout shift.
+Largest contentful paint is 2.2 s on mobile and 0.5 s on desktop, with at most 10 ms of blocking time and no layout shift.
 
 </details>
 
