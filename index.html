@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#fafaf8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e100f" media="(prefers-color-scheme: dark)">
+<meta name="description" content="FairShare splits trip expenses between friends and shows who owes what, entirely in your browser.">
+<title>FairShare - split trip costs fairly</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Crect%20width='32'%20height='32'%20rx='7'%20fill='%234f46e5'/%3E%3Ctext%20x='16'%20y='23'%20font-size='19'%20text-anchor='middle'%20fill='%23ffffff'%20font-family='Arial,sans-serif'%20font-weight='bold'%3EF%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="styles.css?v=0">
+</head>
+<body>
+<div id="load-failure" role="alert" hidden>
+    <p class="notice-text">FairShare could not load. Please reload the page.</p>
+    <button type="button" id="reload-failure" class="notice-dismiss">Reload</button>
+  </div>
+<div id="loading-status" role="status">
+    <p>Loading FairShare… If this message stays, please reload the page.</p>
+  </div>
+<div id="app" hidden>
+  <div id="notice-region" aria-live="polite">
+    <div id="recovery-notice" class="notice" hidden>
+      <p id="recovery-notice-text" class="notice-text"></p>
+      <button type="button" id="dismiss-recovery" class="notice-dismiss" aria-label="Dismiss saved-data recovery notice">Dismiss</button>
+    </div>
+    <div id="storage-warning" class="notice notice-warning" hidden>
+      <p id="storage-warning-text" class="notice-text"></p>
+      <button type="button" id="dismiss-storage-warning" class="notice-dismiss" aria-label="Dismiss storage warning">Dismiss</button>
+    </div>
+    <div id="conflict-notice" class="notice notice-warning" hidden>
+      <p id="conflict-notice-text" class="notice-text"></p>
+      <button type="button" id="dismiss-conflict" class="notice-dismiss">Reload</button>
+    </div>
+  </div>
+
+  <p id="app-toast-live" class="sr-only" role="status" aria-live="polite"></p>
+  <div id="app-toast" class="app-toast" hidden>
+    <span id="app-toast-text"></span><button type="button" id="app-toast-undo" hidden>Undo</button>
+  </div>
+
+  <main>
+    <section id="setup-screen" aria-labelledby="setup-title">
+      <div class="setup-hero">
+        <div class="hero-bg" aria-hidden="true"><i class="hero-field hero-field-blush"></i><i class="hero-field hero-field-gold"></i><i class="hero-field hero-field-blue"></i><i class="hero-streak hero-streak-one"></i><i class="hero-streak hero-streak-two"></i><i class="hero-ring hero-ring-one"></i><i class="hero-ring hero-ring-two"></i><i class="hero-ring hero-ring-three"></i><svg class="hero-grain" aria-hidden="true" focusable="false"><filter id="hero-grain-noise"><feTurbulence type="fractalNoise" baseFrequency=".8" numOctaves="3" stitchTiles="stitch"></feTurbulence></filter><rect width="100%" height="100%" filter="url(#hero-grain-noise)" opacity=".12"></rect></svg></div>
+        <div class="hero-inner">
+          <div class="hero-nav"><span>FairShare</span></div>
+          <div class="hero-grid">
+            <div class="hero-copy">
+              <p class="hero-eyebrow">TRIP EXPENSE SPLITTER</p>
+              <h1>Split trip costs. Settle up in a few payments.</h1>
+              <p class="hero-subcopy">The calm, private way to share every expense and get everyone square.</p>
+              <div class="hero-actions"><button type="button" id="hero-start" class="hero-btn hero-btn-dark">Start a trip</button><button type="button" id="try-sample" class="hero-btn hero-btn-cream">Try a sample trip</button></div>
+              <p class="hero-trust">Any currency · No sign-up · Stays on your device</p>
+              <span class="hero-corner hero-corner-top" aria-hidden="true"></span><span class="hero-corner hero-corner-bottom" aria-hidden="true"></span>
+            </div>
+            <aside class="hero-preview" aria-label="Sample Goa trip preview">
+              <p class="preview-kicker">GOA TRIP · 4 FRIENDS</p>
+              <ol class="preview-steps">
+                <li><strong>Expenses</strong><span>Villa, Rohan paid, split 4 ways <em id="preview-villa"></em></span><span>Beach dinner, Meera paid <em id="preview-dinner"></em></span><span>Airport cabs, Aarav paid <em id="preview-cabs"></em></span></li>
+                <li><strong>Balances</strong><span class="preview-positive">Rohan gets back <em id="preview-rohan"></em></span><span>Kabir owes <em id="preview-kabir"></em></span><span>Aarav owes <em id="preview-aarav"></em></span><span>Meera owes <em id="preview-meera"></em></span></li>
+                <li><strong>Settle up</strong><span>✓ Kabir pays Rohan <em id="preview-pay-kabir"></em></span><span>✓ Aarav pays Rohan <em id="preview-pay-aarav"></em></span><span>✓ Meera pays Rohan <em id="preview-pay-meera"></em></span></li>
+              </ol>
+              <p class="preview-foot">Everyone's square.</p>
+            </aside>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <h2 id="setup-title">Start a trip</h2>
+
+        <div class="field">
+          <label for="trip-name" id="trip-name-label">Trip name</label>
+          <input id="trip-name" aria-label="Trip name" aria-labelledby="trip-name-label" type="text" autocomplete="off" placeholder="e.g. Goa 2026" aria-describedby="trip-name-error">
+          <p class="error" id="trip-name-error" aria-live="polite" hidden></p>
+        </div>
+        <div class="field">
+          <label for="trip-currency" id="trip-currency-label">Currency</label>
+          <select id="trip-currency" aria-label="Currency" aria-labelledby="trip-currency-label" aria-describedby="trip-currency-error"></select>
+          <p class="error" id="trip-currency-error" aria-live="polite" hidden></p>
+        </div>
+
+        <div class="field">
+          <label for="member-name" id="member-name-label">Member name</label>
+          <div class="row">
+            <input id="member-name" aria-label="Member name" aria-labelledby="member-name-label" type="text" autocomplete="off" placeholder="e.g. Aarav" aria-describedby="member-error">
+            <button id="add-member" type="button" class="btn btn-secondary">Add</button>
+          </div>
+          <p class="error" id="member-error" aria-live="polite" hidden></p>
+        </div>
+
+        <h3 class="members-heading">People <span id="member-count" class="muted">0 of 10</span></h3>
+        <ul id="member-list" class="member-list" aria-label="Trip members"></ul>
+        <p class="error" id="member-min-error" aria-live="polite" hidden></p>
+        <p class="error" id="create-error" aria-live="polite" hidden></p>
+
+        <button id="create-trip" type="button" class="btn btn-primary btn-block">Create trip</button>
+      </div>
+    </section>
+
+<section id="workspace-screen" hidden aria-labelledby="trip-title">
+       <div class="trip-header">
+         <div class="trip-header-copy">
+           <span class="workspace-wordmark">FairShare</span>
+           <h1 id="trip-title" tabindex="-1"></h1>
+           <p class="muted" id="trip-summary"></p>
+         </div>
+         <div class="trip-menu-wrap">
+           <button type="button" id="trip-options" class="trip-options" aria-label="Trip options" aria-haspopup="menu" aria-expanded="false">
+             <svg aria-hidden="true" viewBox="0 0 4 20" focusable="false"><circle cx="2" cy="2" r="2"></circle><circle cx="2" cy="10" r="2"></circle><circle cx="2" cy="18" r="2"></circle></svg>
+           </button>
+           <div id="trip-menu" class="trip-menu" role="menu" aria-label="Trip options" hidden>
+              <button type="button" id="export-trip" class="trip-menu-item" role="menuitem" tabindex="-1">Export trip</button>
+              <button type="button" id="record-payment-menu" class="trip-menu-item" role="menuitem" tabindex="-1">Record a payment</button>
+              <button type="button" id="new-trip" class="trip-menu-item" role="menuitem" tabindex="-1">New trip</button>
+           </div>
+         </div>
+       </div>
+
+      <dialog id="settle-dialog" class="expense-dialog new-trip-dialog settle-dialog" aria-labelledby="settle-dialog-title" aria-describedby="settle-dialog-amount settle-dialog-text">
+        <div class="sheet-grab" aria-hidden="true"></div>
+        <div class="new-trip-dialog-content">
+          <h2 id="settle-dialog-title">Mark as paid?</h2>
+          <p id="settle-dialog-amount" class="settle-dialog-amount"></p>
+          <p id="settle-dialog-text" class="muted"></p>
+          <div class="new-trip-dialog-actions">
+            <button type="button" id="settle-confirm" class="btn btn-primary">Mark as paid</button>
+            <button type="button" id="settle-cancel" class="btn btn-ghost">Cancel</button>
+          </div>
+        </div>
+      </dialog>
+      <dialog id="new-trip-dialog" class="expense-dialog new-trip-dialog" aria-labelledby="new-trip-dialog-title" aria-describedby="new-trip-dialog-text">
+        <div class="sheet-grab" aria-hidden="true"></div>
+        <div class="new-trip-dialog-content">
+          <h2 id="new-trip-dialog-title">Start a new trip?</h2>
+          <p id="new-trip-dialog-text" class="muted"></p>
+          <p id="new-trip-dialog-error" class="dialog-save-error" role="alert" hidden></p>
+          <div class="new-trip-dialog-actions">
+            <button type="button" id="confirm-export-start" class="btn btn-primary">Export and start new</button>
+            <button type="button" id="confirm-start-new" class="btn btn-secondary">Start new without exporting</button>
+            <button type="button" id="confirm-cancel" class="btn btn-ghost">Cancel</button>
+          </div>
+        </div>
+      </dialog>
+      
+      <nav aria-label="Trip sections" class="tab-bar">
+        <button type="button" id="tab-expenses" class="tab-btn" aria-controls="view-expenses">Expenses</button>
+        <button type="button" id="tab-balances" class="tab-btn" aria-controls="view-balances">Balances</button>
+        <button type="button" id="tab-settle" class="tab-btn" aria-controls="view-settle">Settle up</button>
+      </nav>
+
+      <div id="view-expenses" class="view-panel">
+         <h2 id="view-expenses-title" tabindex="-1">Expenses</h2>
+
+        <button id="add-expense-fab" type="button" class="fab" aria-label="Add expense">+</button>
+
+        <dialog id="expense-dialog" class="expense-dialog" aria-labelledby="expense-form-title">
+          <form id="expense-form" action="#" method="post">
+            <span class="sheet-grab" aria-hidden="true"></span>
+            <div class="expense-dialog-header"><h3 id="expense-form-title">Add expense</h3><button type="button" id="delete-expense-dialog" class="delete-dialog-btn" hidden>Delete</button></div>
+            <div class="expense-dialog-body">
+            <div class="field">
+              <label for="expense-description" id="expense-description-label">Description</label>
+              <input id="expense-description" aria-label="Description" aria-labelledby="expense-description-label" type="text" autocomplete="off" placeholder="e.g. Dinner" aria-describedby="description-error">
+              <p class="error" id="description-error" aria-live="polite" hidden></p>
+            </div>
+            <div class="field">
+              <label for="expense-amount" id="expense-amount-label">Amount (INR)</label>
+              <input id="expense-amount" aria-label="Amount" aria-labelledby="expense-amount-label" type="text" inputmode="decimal" autocomplete="off" placeholder="0.00" aria-describedby="amount-error">
+              <p class="error" id="amount-error" aria-live="polite" hidden></p>
+            </div>
+            <div class="field">
+              <label for="expense-payer" id="expense-payer-label">Paid by</label>
+              <select id="expense-payer" aria-label="Paid by" aria-labelledby="expense-payer-label" aria-describedby="payer-error"></select>
+              <p class="error" id="payer-error" aria-live="polite" hidden></p>
+            </div>
+            <div class="field">
+              <label for="expense-date" id="expense-date-label">Date</label>
+              <input id="expense-date" aria-label="Date" aria-labelledby="expense-date-label" type="date" min="2000-01-01" aria-describedby="date-error">
+              <p class="error" id="date-error" aria-live="polite" hidden></p>
+            </div>
+            <fieldset class="field participants-field" id="participants-field" aria-describedby="participants-error" tabindex="-1">
+              <legend>Split between</legend>
+              <button type="button" id="participants-toggle" class="participants-toggle">Clear all</button>
+              <div id="participant-list" class="participant-list"></div>
+              <p class="error" id="participants-error" aria-live="polite" hidden></p>
+            </fieldset>
+            </div>
+            <p id="dialog-save-error" class="dialog-save-error" role="alert" hidden></p>
+            <div class="expense-dialog-footer"><button type="submit" id="save-expense" class="btn btn-primary">Save</button><button type="button" id="cancel-expense-dialog" class="btn btn-ghost">Cancel</button></div>
+          </form>
+        </dialog>
+
+        <section class="panel" aria-labelledby="view-expenses-title">
+           <div id="expenses-empty" class="expenses-empty"><strong>No expenses yet</strong><span class="muted">Tap + to add the first one.</span><button type="button" id="empty-add-expense" class="btn btn-primary">Add expense</button></div>
+           <ul id="expense-list" class="expense-list"></ul>
+        </section>
+      </div>
+
+      <div class="summary-col">
+       <div id="view-balances" class="view-panel" hidden>
+          <h2 id="view-balances-title" tabindex="-1">Balances</h2>
+         <section class="panel">
+           <div id="balances-empty" class="view-empty" hidden><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="m8 12 2.5 2.5L16 9"></path></svg><strong>Everyone's square.</strong><span class="muted">Add an expense to see balances.</span></div>
+           <ul id="balance-list" class="balance-list"></ul>
+         </section>
+       </div>
+
+      <div id="view-settle" class="view-panel" hidden>
+         <h2 id="view-settle-title" tabindex="-1">Settle up</h2>
+         <section class="panel" aria-labelledby="view-settle-title">
+           <div id="settle-empty" class="view-empty" hidden><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="m8 12 2.5 2.5L16 9"></path></svg><strong>Everyone's square.</strong><span class="muted">Nothing to settle.</span></div>
+            <p id="settle-summary" class="muted settle-summary"></p>
+            <p id="settle-hint" class="muted settle-hint"></p>
+            <ul id="settle-list" class="settle-list"></ul>
+           <button type="button" id="record-payment" class="btn btn-ghost btn-block">Record a payment</button>
+           <button type="button" id="copy-settle" class="btn btn-secondary btn-block copy-settle-btn">Copy summary</button>
+         </section>
+       </div>
+       </div>
+     </section>
+     <dialog id="payment-dialog" class="expense-dialog" aria-labelledby="payment-form-title">
+       <form id="payment-form" action="#" method="post">
+         <span class="sheet-grab" aria-hidden="true"></span>
+         <div class="expense-dialog-header"><h3 id="payment-form-title">Record a payment</h3><button type="button" id="delete-payment" class="delete-dialog-btn" hidden>Delete</button></div>
+         <div class="expense-dialog-body">
+           <div class="field">
+             <label for="payment-from" id="payment-from-label">From</label>
+             <select id="payment-from" aria-label="From" aria-labelledby="payment-from-label" aria-describedby="payment-error"></select>
+           </div>
+           <div class="field">
+             <label for="payment-to" id="payment-to-label">To</label>
+             <select id="payment-to" aria-label="To" aria-labelledby="payment-to-label" aria-describedby="payment-error"></select>
+           </div>
+           <div class="field">
+             <label for="payment-amount" id="payment-amount-label">Amount (INR)</label>
+             <input id="payment-amount" aria-label="Amount" aria-labelledby="payment-amount-label" type="text" inputmode="decimal" autocomplete="off" placeholder="0.00" aria-describedby="payment-error">
+           </div>
+           <div class="field">
+             <label for="payment-date" id="payment-date-label">Date</label>
+             <input id="payment-date" aria-label="Date" aria-labelledby="payment-date-label" type="date" min="2000-01-01" aria-describedby="payment-error">
+           </div>
+           <p id="payment-error" class="error" role="alert" hidden></p>
+         </div>
+         <div class="expense-dialog-footer"><button type="submit" class="btn btn-primary" id="save-payment">Record payment</button><button type="button" class="btn btn-ghost" id="cancel-payment-dialog">Cancel</button></div>
+       </form>
+     </dialog>
+  </main>
+</div>
+
+<script src="core.js?v=0" defer></script>
+<script src="app.js?v=0" defer></script>
+</body>
+</html>

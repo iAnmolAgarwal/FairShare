@@ -1,0 +1,19 @@
+{
+  "name": "fairshare",
+  "version": "0.31.7",
+  "private": true,
+  "description": "FairShare browser-only trip expense splitter",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js",
+    "test": "node --test",
+    "lint": "eslint server.js core.js app.js test/"
+  },
+  "devDependencies": {
+    "eslint": "^10.11.0",
+    "jsdom": "^30.1.1"
+  }
+}
