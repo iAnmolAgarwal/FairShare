@@ -244,7 +244,7 @@ test('index.html contains no style attributes', async () => {
   }
 });
 
-test('styles.css starts with :root{ and contains no stray prompt text', async () => {
+test('styles.css starts with :root{ and contains no stray non-CSS text', async () => {
   const res = await request('GET', '/styles.css');
   assert.ok(res.body.startsWith(':root{') || res.body.startsWith(':root {'), 'styles.css starts with :root{ or :root {');
   assert.ok(!res.body.includes('Context:'), 'styles.css has no stray Context: text');
