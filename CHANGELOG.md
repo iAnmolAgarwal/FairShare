@@ -11,12 +11,13 @@ First public release.
 
 ### Added
 
-- `npm run build` writes a static `dist/` (index.html, core.js, app.js, styles.css) for
-  GitHub Pages. Asset URLs get the same content-hash versions the dev server uses and stay
-  relative, so the site also works from a sub-path. The Content Security Policy is
-  embedded as a `<meta>` tag because Pages cannot send headers.
-- GitHub Actions: CI runs lint, tests and the build on every push and pull request, and a
-  Pages workflow deploys `dist/` on pushes to `main`.
+- `npm run build` writes a static `dist/` (index.html, core.js, app.js, styles.css).
+  Asset URLs get the same content-hash versions the dev server uses and stay relative.
+  The Content Security Policy is also embedded as a `<meta>` tag.
+- Hosting on Vercel at https://fairshare-trips.vercel.app, configured by `vercel.json`:
+  the same CSP as the dev server plus `frame-ancestors 'none'`, HSTS, a permissions
+  policy, and year-long immutable caching for the hashed assets.
+- GitHub Actions CI runs lint, tests and the build on every push and pull request.
 - MIT license.
 
 ### Changed

@@ -1,8 +1,9 @@
 "use strict";
 
-// Static build for GitHub Pages: writes dist/ with index.html, core.js, app.js and
-// styles.css. Asset URLs stay relative, so dist/ also works from a sub-path such as
-// /fairshare/. Pages cannot send headers, so the CSP goes in a <meta> tag.
+// Static build: writes dist/ with index.html, core.js, app.js and styles.css, which
+// is what Vercel serves. Asset URLs stay relative, so dist/ also works from a sub-path.
+// The CSP is also embedded as a <meta> tag, so the page stays protected on hosts that
+// cannot send headers; vercel.json sends the full policy as a header.
 
 const fs = require("fs");
 const path = require("path");
