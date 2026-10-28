@@ -66,7 +66,7 @@ Every amount is stored as an integer number of minor units (paise for rupees, ce
 
 **Why the leftover paisa goes to the first person.** ₹100 between three people is ₹33.33 each with one paisa left over. FairShare gives that paisa to the first participant in trip order, so the shares are ₹33.34, ₹33.33 and ₹33.33 and the balances always add up to exactly zero.
 
-**Why the plan is short.** The settle-up pass repeatedly pairs the person who owes the most with the person who is owed the most, and moves the smaller of the two amounts. Each step clears at least one person, so a trip of *n* people needs at most *n* − 1 payments.
+**Why the plan is short.** The settle-up pass lines up who owes, largest debt first, and who is owed, largest credit first, then pays the head of one list to the head of the other with the smaller of the two amounts. Each payment clears at least one person, so a trip of *n* people needs at most *n* − 1 payments.
 
 A worked example, with the demo trip from the screenshots before anyone has paid anyone back:
 
@@ -104,10 +104,10 @@ For local development, [`server.js`](server.js) is a small static server that on
 
 ## Privacy
 
-- **No backend.** There is no server-side code and no database. The live site is static files on GitHub Pages.
+- **No backend.** The live site is four static files: no server-side code, no database, no API.
 - **No accounts, analytics, tracking or ads.** The page makes no network requests after it loads.
 - **Data stays on your device.** Trips are kept in this browser's `localStorage` and nowhere else. Clearing site data deletes them, so export a trip you care about.
-- **You can read it.** About 3,300 lines of plain JavaScript, no build step for the app itself, no minified bundles.
+- **You can read it.** About 3,300 lines of plain JavaScript, not minified or bundled. The build only copies the files and stamps cache-busting hashes.
 
 > **One phone, one copy.** Because nothing syncs, the trip lives on whichever device created it. Copy the summary into the group chat (or share the exported JSON) at the end.
 
@@ -140,13 +140,13 @@ Largest contentful paint is 1.8 s on mobile and 0.4 s on desktop, with 0 ms of b
 <summary><b>Run it locally</b></summary>
 <br>
 
-You need Node.js 22 or newer for the dev tools (the app itself only needs a browser). The app has no runtime dependencies; `npm ci` installs the dev tools (ESLint and jsdom) only.
+You need Node.js 22.22, 24.15 or 26 and newer for the dev tools, because jsdom needs it (the app itself only needs a browser). The app has no runtime dependencies; `npm ci` installs the dev tools (ESLint and jsdom) only.
 
 ```sh
 git clone https://github.com/iAnmolAgarwal/fairshare.git
 cd fairshare
 npm ci              # dev tools only
-npm start           # http://localhost:5000, override with PORT
+npm start           # http://127.0.0.1:5000; PORT and HOST override it
 npm test            # unit, UI smoke and server tests
 npm run lint        # ESLint, zero warnings
 npm run build       # static site in dist/, as deployed to GitHub Pages

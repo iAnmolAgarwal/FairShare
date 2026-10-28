@@ -29,6 +29,11 @@ First public release.
   copy is kept if the move cannot be written.
 - The dev server and the build share one module for asset hashing and the CSP.
 
+> **Entries before 1.0.0** were written while FairShare was built inside the AI Innovation
+> Arena workspace, which also had a `frontend/` folder, a Makefile, a `BASE_BE_ENDPOINT`
+> setting and platform-provided `.env` files. None of those are part of this repository,
+> and the app never read anything from them.
+
 ## [0.31.7] - 2026-09-23
 
 ### Fixed
@@ -39,7 +44,7 @@ First public release.
 
 ### Security
 
-- Removed hardcoded secrets from `.env` and `.env.example`. The Makefile no longer writes a `.env` file and passes configuration through environment variables instead.
+- Removed the platform-provided credential entries from the workspace's `.env` and `.env.example` (the app never used them). The Makefile no longer writes a `.env` file and passes configuration through environment variables instead.
 
 ### Changed
 
