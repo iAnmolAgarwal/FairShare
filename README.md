@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-  <a href="https://ianmolagarwal.github.io/fairshare/"><img src="https://img.shields.io/badge/live-ianmolagarwal.github.io%2Ffairshare-4d7c0f" alt="Live at ianmolagarwal.github.io/fairshare"></a>
+  <a href="https://fairshare-trips.vercel.app"><img src="https://img.shields.io/badge/live-fairshare--trips.vercel.app-4d7c0f" alt="Live at fairshare-trips.vercel.app"></a>
   <img src="https://img.shields.io/badge/AI%20Innovation%20Arena-top%2010%20runner--up-2563EB" alt="One of the 10 runners-up in HackerEarth's AI Innovation Arena">
   <img src="https://img.shields.io/badge/arena%20evaluation-100%2F100-111827" alt="Scored 100 out of 100 on the arena's security, code quality, correctness, performance and accessibility evaluation">
   <img src="https://img.shields.io/badge/tests-140%20passing-4B5563" alt="140 tests pass">
@@ -19,7 +19,7 @@ FairShare splits the cost of a trip between friends and tells you who owes whom.
 
 ## Try it in 30 seconds
 
-Open **[ianmolagarwal.github.io/fairshare](https://ianmolagarwal.github.io/fairshare/)** on your phone, then:
+Open **[fairshare-trips.vercel.app](https://fairshare-trips.vercel.app)** on your phone, then:
 
 1. name the trip, pick a currency and add two to ten people, then tap **Create trip**
 2. tap **+** and add a few expenses: who paid, how much, and who it was for
@@ -100,7 +100,7 @@ flowchart LR
 
 The app is four static files and no runtime dependencies. [`core.js`](core.js) holds every rule that touches money (parsing, splitting, balances, the settle plan, validation and schema migration) as pure functions with no DOM access, which is why most of the tests can run in plain Node. [`app.js`](app.js) renders the screens and wires the events. Saved trips carry a schema version and a revision number: older saves are migrated on load, and a save that would overwrite a newer copy from another tab is stopped and shown as a conflict.
 
-For local development, [`server.js`](server.js) is a small static server that only serves an allowlist of four files, stamps each asset URL with a content hash, and sends a strict Content Security Policy. The GitHub Pages build does the same hashing at build time and puts the policy in a `<meta>` tag.
+For local development, [`server.js`](server.js) is a small static server that only serves an allowlist of four files, stamps each asset URL with a content hash, and sends a strict Content Security Policy. The production build does the same hashing at build time, and [`vercel.json`](vercel.json) sends the same policy from Vercel, with `frame-ancestors 'none'`, HSTS and long-lived caching for the hashed files on top.
 
 ## Privacy
 
@@ -143,13 +143,13 @@ Largest contentful paint is 1.8 s on mobile and 0.4 s on desktop, with 0 ms of b
 You need Node.js 22.22, 24.15 or 26 and newer for the dev tools, because jsdom needs it (the app itself only needs a browser). The app has no runtime dependencies; `npm ci` installs the dev tools (ESLint and jsdom) only.
 
 ```sh
-git clone https://github.com/iAnmolAgarwal/fairshare.git
-cd fairshare
+git clone https://github.com/iAnmolAgarwal/FairShare.git
+cd FairShare
 npm ci              # dev tools only
 npm start           # http://127.0.0.1:5000; PORT and HOST override it
 npm test            # unit, UI smoke and server tests
 npm run lint        # ESLint, zero warnings
-npm run build       # static site in dist/, as deployed to GitHub Pages
+npm run build       # static site in dist/, as deployed to Vercel
 ```
 
 </details>
@@ -167,8 +167,9 @@ npm run build       # static site in dist/, as deployed to GitHub Pages
 ├── server.js           # allowlisted static dev server with CSP
 ├── scripts/
 │   ├── assets.js       # asset hashing and CSP, shared by server and build
-│   └── build.js        # static build for GitHub Pages
+│   └── build.js        # static build, served by Vercel
 ├── test/               # node:test suites
+├── vercel.json         # hosting: build, security headers, caching
 └── docs/images/        # README images
 ```
 

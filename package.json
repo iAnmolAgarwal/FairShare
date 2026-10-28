@@ -5,10 +5,10 @@
   "description": "FairShare: split trip costs between friends and see who owes whom. Runs entirely in the browser, no backend.",
   "license": "MIT",
   "author": "Anmol Agarwal",
-  "homepage": "https://ianmolagarwal.github.io/fairshare/",
+  "homepage": "https://fairshare-trips.vercel.app",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/iAnmolAgarwal/fairshare.git"
+    "url": "git+https://github.com/iAnmolAgarwal/FairShare.git"
   },
   "engines": {
     "node": "^22.22.2 || ^24.15.0 || >=26"
