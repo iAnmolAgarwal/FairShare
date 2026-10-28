@@ -99,9 +99,21 @@ body {
 #load-failure[hidden] {
   display: none;
 }
+/* Overlaid, so swapping it for the app moves nothing, and only shown when loading is
+   slow, so a normal load never paints it (no layout shift either way). */
+@keyframes loading-status-in {
+  from {
+    visibility: hidden;
+  }
+}
 #loading-status {
+  animation: loading-status-in 0s linear 0.8s both;
+  position: fixed;
+  top: 32px;
+  left: 16px;
+  right: 16px;
   max-width: 520px;
-  margin: 32px auto;
+  margin: 0 auto;
   padding: 32px;
   background: var(--surface);
   border: 0;
