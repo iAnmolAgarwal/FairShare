@@ -103,7 +103,10 @@ function balances(doc) {
   doc.querySelectorAll('#balance-list .balance-item').forEach((li) => {
     const name = li.querySelector('.balance-name');
     const amount = li.querySelector('.balance-amount');
-    if (name && amount) map[name.textContent] = amount.textContent;
+    if (!name || !amount) return;
+    // "owes" rows show the amount without a minus sign; the row class carries the sign.
+    assert.ok(!amount.textContent.includes('-'), 'no minus sign in balance amounts: ' + amount.textContent);
+    map[name.textContent] = (li.classList.contains('negative') ? '-' : '') + amount.textContent;
   });
   return map;
 }
@@ -170,7 +173,8 @@ test('app smoke: USD trip uses USD amount label and formatting', () => {
   doc.getElementById('trip-name').value = 'USD trip';
   doc.getElementById('trip-currency').value = 'USD';
   doc.getElementById('create-trip').click();
-  assert.equal(doc.getElementById('trip-summary').textContent, '2 members · $0 total');
+  assert.equal(doc.getElementById('trip-summary').textContent, '2 people · No expenses yet');
+  assert.equal(doc.getElementById('trip-total').textContent, '$0');
   doc.getElementById('add-expense-fab').click();
   assert.equal(doc.getElementById('expense-amount-label').textContent, 'Amount (USD)');
   assert.equal(doc.getElementById('expense-amount').placeholder, '0.00');
@@ -232,6 +236,32 @@ test('app smoke: mark suggested payment paid and undo it', () => {
   assert.equal(JSON.parse(dom.window.localStorage.getItem('fairshare.activeTrip.v1')).payments.length, 1, 'payment recorded');
   doc.getElementById('app-toast-undo').click();
   assert.equal(JSON.parse(dom.window.localStorage.getItem('fairshare.activeTrip.v1')).payments.length, 0, 'payment undone');
+  assert.equal(errors.length, 0, 'no console errors: ' + errors.join(' | '));
+  dom.window.close();
+});
+
+test('app smoke: a fully settled trip says so on Balances and Settle up', async () => {
+  const { dom, errors } = page();
+  const doc = dom.window.document;
+  addMember(doc, 'A'); addMember(doc, 'B'); createTrip(doc, 'Square');
+  doc.getElementById('tab-balances').click();
+  assert.equal(doc.getElementById('balances-empty-title').textContent, 'No balances yet', 'empty trip has no balances');
+  assert.equal(doc.getElementById('copy-settle').hidden, true, 'nothing to copy before any spending');
+  addExpense(doc, dom.window, { desc: 'Dinner', amount: '100', payer: 'A', participants: ['A', 'B'] });
+  assert.equal(doc.getElementById('trip-total').textContent, '₹100', 'trip total is the hero number');
+  doc.getElementById('tab-settle').click();
+  assert.equal(doc.getElementById('settle-progress').hidden, false, 'progress shows while payments are due');
+  doc.querySelector('.settle-row-button').click();
+  doc.getElementById('settle-confirm').click();
+  await tick(dom.window);
+  assert.equal(doc.getElementById('app-toast-text').textContent, "Payment recorded. Everyone's square.");
+  assert.equal(doc.getElementById('settle-empty').hidden, false, 'settled moment is shown');
+  assert.ok(doc.getElementById('settle-empty').classList.contains('is-settled'));
+  assert.match(doc.getElementById('settle-empty-text').textContent, /shared across 1 expense · 1 payment made/);
+  doc.getElementById('tab-balances').click();
+  assert.equal(doc.getElementById('balances-empty-title').textContent, "Everyone's square.");
+  assert.equal(doc.getElementById('balance-list').hidden, false, 'settled members are still listed');
+  assert.equal(doc.querySelectorAll('#balance-list .balance-item.zero').length, 2);
   assert.equal(errors.length, 0, 'no console errors: ' + errors.join(' | '));
   dom.window.close();
 });
@@ -317,7 +347,8 @@ test('app smoke: invalid submit focuses first invalid field', () => {
   doc.getElementById('expense-form').dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
 
   const focused = doc.activeElement;
-  assert.ok(focused === doc.getElementById('expense-description'), 'focus on description, got: ' + (focused && focused.id));
+  // Amount is the first field in the sheet, so it is the first invalid field focused.
+  assert.ok(focused === doc.getElementById('expense-amount'), 'focus on amount, got: ' + (focused && focused.id));
 
   assert.equal(errors.length, 0, 'no console errors: ' + errors.join(' | '));
   dom.window.close();
@@ -933,7 +964,7 @@ test('app smoke: a saved trip in a currency outside the picker list keeps it sel
   assert.equal(doc.getElementById('recovery-notice').hidden, true, 'not treated as corrupted');
   assert.equal(select.value, 'HRK');
   assert.equal(select.selectedOptions[0].textContent, 'HRK - Croatian Kuna');
-  assert.match(doc.getElementById('trip-summary').textContent, /HRK\s100 total/, 'amount formats');
+  assert.match(doc.getElementById('trip-total').textContent, /HRK\s100/, 'amount formats');
   doc.getElementById('add-expense-fab').click();
   assert.equal(doc.getElementById('expense-amount-label').textContent, 'Amount (HRK)');
   assert.equal(errors.length, 0, 'no console errors: ' + errors.join(' | '));
@@ -999,7 +1030,7 @@ test('app smoke: importing a trip with no trip saved opens it on the Expenses vi
   assert.equal(doc.getElementById('trip-title').textContent, 'Lisbon');
   assert.equal(dom.window.location.hash, '#expenses');
   assert.equal(doc.activeElement.id, 'view-expenses-title');
-  assert.equal(doc.querySelectorAll('#expense-list li').length, 2, 'expense and payment listed');
+  assert.equal(doc.querySelectorAll('#expense-list li:not(.expense-day)').length, 2, 'expense and payment listed');
   assert.equal(doc.getElementById('app-toast-text').textContent, 'Imported Lisbon');
   assert.equal(doc.getElementById('app-toast-undo').hidden, true, 'nothing to undo');
   await announced(dom.window);

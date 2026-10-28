@@ -115,6 +115,21 @@
 
   const tripTitleEl = document.getElementById("trip-title");
   const tripSummaryEl = document.getElementById("trip-summary");
+  const tripTotalEl = document.getElementById("trip-total");
+  const expensesStat = document.getElementById("expenses-stat");
+  const balancesStat = document.getElementById("balances-stat");
+  const settleStat = document.getElementById("settle-stat");
+  const balancesEmptyTitle = document.getElementById("balances-empty-title");
+  const balancesEmptyText = document.getElementById("balances-empty-text");
+  const settleProgress = document.getElementById("settle-progress");
+  const settleProgressAmount = document.getElementById("settle-progress-amount");
+  const settleMeterFill = document.getElementById("settle-meter-fill");
+  const settleFlow = document.getElementById("settle-flow");
+  const settleEmptyTitle = document.getElementById("settle-empty-title");
+  const settleEmptyText = document.getElementById("settle-empty-text");
+  const settleDialogPair = document.getElementById("settle-dialog-pair");
+  const amountPrefix = document.getElementById("expense-amount-prefix");
+  const splitPreview = document.getElementById("split-preview");
   const tripOptionsBtn = document.getElementById("trip-options");
   const tripMenu = document.getElementById("trip-menu");
   const appToast = document.getElementById("app-toast");
@@ -153,6 +168,8 @@
   const paymentAmount = document.getElementById("payment-amount");
   const paymentDate = document.getElementById("payment-date");
   const paymentError = document.getElementById("payment-error");
+  // Where the payment error sits when it is not about one field.
+  const paymentErrorHome = paymentError ? paymentError.parentElement : null;
   const paymentTitle = document.getElementById("payment-form-title");
   const savePaymentBtn = document.getElementById("save-payment");
   const deletePaymentBtn = document.getElementById("delete-payment");
@@ -246,6 +263,10 @@
     appToastLive, importTripBtn, importTripSetupBtn, importFileInput, importError,
     importErrorText, dismissImportErrorBtn, importDialog, importDialogText,
     importDialogError, importExportReplaceBtn, importReplaceBtn, importCancelBtn,
+    tripTotalEl, expensesStat, balancesStat, settleStat, balancesEmptyTitle,
+    balancesEmptyText, settleProgress, settleProgressAmount, settleMeterFill,
+    settleFlow, settleEmptyTitle, settleEmptyText, settleDialogPair, amountPrefix,
+    splitPreview,
   ];
   if (allElements.some((el) => el === null)) {
     showLoadFailure();
@@ -809,6 +830,76 @@
     const currency = state ? state.currency : tripCurrencySelect.value;
     amountLabel.textContent = "Amount (" + currency + ")";
     amountInput.placeholder = Core.amountPlaceholder(currency);
+    amountPrefix.textContent = currencySymbol(currency);
+  }
+
+  // The symbol the trip's money format uses ("€", "₹", "HRK"), shown before the
+  // amount field. Falls back to the code when the browser cannot format it.
+  function currencySymbol(currency) {
+    if (!Core.isSupportedCurrency(currency)) {
+      return "";
+    }
+    const parts = splitMoney(formatMoney(0, currency));
+    return (parts ? (parts.before || parts.after) : "").trim() || currency;
+  }
+
+  // "€1,210.20" -> { before: "€", number: "1,210.20", after: "" }, so the symbol
+  // can be set smaller than the figures. Returns null if no digits are found.
+  function splitMoney(text) {
+    const match = /^(\D*?)(\d(?:.*\d)?)(\D*)$/.exec(text);
+    return match ? { before: match[1], number: match[2], after: match[3] } : null;
+  }
+
+  function setMoney(el, minor) {
+    const text = formatMoney(minor, state.currency);
+    const parts = splitMoney(text);
+    el.replaceChildren();
+    if (!parts) {
+      el.textContent = text;
+      return;
+    }
+    [
+      [parts.before, "money-symbol"],
+      [parts.number, ""],
+      [parts.after, "money-symbol"],
+    ].forEach((part) => {
+      if (!part[0]) {
+        return;
+      }
+      if (!part[1]) {
+        el.appendChild(document.createTextNode(part[0]));
+        return;
+      }
+      const span = document.createElement("span");
+      span.className = part[1];
+      span.textContent = part[0];
+      el.appendChild(span);
+    });
+  }
+
+  function updateSplitPreview() {
+    if (!state) {
+      return;
+    }
+    const count = getSelectedParticipants().length;
+    const everyone = state.members.length;
+    if (count === 0) {
+      splitPreview.textContent = "Pick at least one person to split with.";
+      return;
+    }
+    const who = count === everyone ? "split " + count + " ways" : count + " of " + everyone + " people";
+    const amount = parseAmount(amountInput.value, state.currency);
+    if (!amountInput.value.trim() || !amount.ok) {
+      splitPreview.textContent = count === 1 ? "One person covers it" : who.charAt(0).toUpperCase() + who.slice(1);
+      return;
+    }
+    if (count === 1) {
+      splitPreview.textContent = formatMoney(amount.paise, state.currency) + " for one person";
+      return;
+    }
+    const share = formatMoney(Math.round(amount.paise / count), state.currency);
+    const exact = amount.paise % count === 0;
+    splitPreview.textContent = (exact ? "" : "About ") + share + " each \u00b7 " + who;
   }
 
   function setDateBounds(input) {
@@ -897,6 +988,7 @@
       checkbox.addEventListener("change", () => {
         clearError(participantsError);
         updateParticipantsToggle();
+        updateSplitPreview();
       });
 
       const text = document.createElement("span");
@@ -925,6 +1017,7 @@
     });
     clearError(participantsError);
     updateParticipantsToggle();
+    updateSplitPreview();
   }
 
   function getSelectedParticipants() {
@@ -946,6 +1039,7 @@
     setDateBounds(dateInput);
     clearAllErrors();
     renderParticipants();
+    updateSplitPreview();
   }
 
   function balanceKind(value) {
@@ -973,8 +1067,20 @@
       (max, entry) => Math.max(max, Math.abs(entry.value)),
       0,
     );
+    const hasActivity = state.expenses.length > 0 || (state.payments || []).length > 0;
+    const allSquare = hasActivity && largest === 0;
     balancesEmpty.hidden = largest > 0;
-    balanceListEl.hidden = largest === 0;
+    balancesEmpty.classList.toggle("is-square", allSquare);
+    balancesEmptyTitle.textContent = allSquare ? "Everyone's square." : "No balances yet";
+    balancesEmptyText.textContent = allSquare
+      ? "Nobody owes anything right now."
+      : "Add an expense to see who owes whom.";
+    balanceListEl.hidden = !hasActivity;
+    const owed = entries.filter((entry) => entry.value > 0).length;
+    const owing = entries.filter((entry) => entry.value < 0).length;
+    balancesStat.textContent = largest > 0
+      ? owed + (owed === 1 ? " gets back" : " get back") + " \u00b7 " + owing + (owing === 1 ? " owes" : " owe")
+      : allSquare ? "All square" : "";
     entries.forEach((entry) => {
       const value = entry.value;
       const kind = balanceKind(value);
@@ -999,7 +1105,8 @@
 
       const amountEl = document.createElement("span");
       amountEl.className = "balance-amount";
-      amountEl.textContent = formatMoney(value, state.currency);
+      // The word ("owes", "gets back") and the colour carry the sign.
+      amountEl.textContent = formatMoney(Math.abs(value), state.currency);
       item.appendChild(content);
       item.appendChild(amountEl);
 
@@ -1017,8 +1124,110 @@
     });
   }
 
+  function sumAmounts(items) {
+    return items.reduce((total, item) => total + item.amountPaise, 0);
+  }
+
+  function renderSettleProgress(settlements) {
+    const payments = state.payments || [];
+    const remaining = sumAmounts(settlements);
+    const paid = sumAmounts(payments);
+    const hasActivity = state.expenses.length > 0 || payments.length > 0;
+    settleProgress.hidden = settlements.length === 0;
+    settleProgressAmount.textContent = paid > 0
+      ? formatMoney(paid, state.currency) + " paid so far"
+      : "Nothing paid yet";
+    const share = paid + remaining > 0 ? paid / (paid + remaining) : 0;
+    settleMeterFill.style.width = Math.round(share * 1000) / 10 + "%";
+    settleStat.textContent = settlements.length > 0
+      ? formatMoney(remaining, state.currency) + " to move"
+      : hasActivity ? "All square" : "";
+    settleEmpty.classList.toggle("is-settled", hasActivity);
+    // Nothing to summarise until something has been spent or paid.
+    copySettleBtn.hidden = !hasActivity;
+    if (hasActivity) {
+      const count = state.expenses.length;
+      settleEmptyTitle.textContent = "Everyone's square.";
+      settleEmptyText.textContent =
+        formatMoney(sumAmounts(state.expenses), state.currency) +
+        " shared across " + count + (count === 1 ? " expense" : " expenses") +
+        (payments.length > 0
+          ? " \u00b7 " + payments.length + (payments.length === 1 ? " payment made" : " payments made")
+          : "");
+    } else {
+      settleEmptyTitle.textContent = "Nothing to settle yet";
+      settleEmptyText.textContent = "Add an expense and the fewest payments to square up appear here.";
+    }
+  }
+
+  const SVG_NS = "http://www.w3.org/2000/svg";
+
+  function svgEl(name, attrs) {
+    const el = document.createElementNS(SVG_NS, name);
+    Object.keys(attrs).forEach((key) => {
+      el.setAttribute(key, attrs[key]);
+    });
+    return el;
+  }
+
+  function shortName(name) {
+    return name.length > 10 ? name.slice(0, 9) + "\u2026" : name;
+  }
+
+  // A picture of the plan: who pays on the left, who gets paid on the right, one
+  // arc per payment, thicker for larger amounts. The list below says the same in words.
+  function renderSettleFlow(settlements) {
+    settleFlow.replaceChildren();
+    settleFlow.hidden = settlements.length === 0;
+    if (settlements.length === 0) {
+      return;
+    }
+    const unique = (names) => names.filter((name, i) => names.indexOf(name) === i);
+    const payers = unique(settlements.map((s) => s.from));
+    const payees = unique(settlements.map((s) => s.to));
+    const rows = Math.max(payers.length, payees.length);
+    const rowHeight = 40;
+    const pad = 22;
+    const height = pad * 2 + (rows - 1) * rowHeight;
+    const yFor = (index, count) => pad + ((rows - count) * rowHeight) / 2 + index * rowHeight;
+    const largest = Math.max.apply(null, settlements.map((s) => s.amountPaise));
+    const svg = svgEl("svg", { viewBox: "0 0 320 " + height, focusable: "false", class: "settle-flow-svg" });
+    settlements.forEach((s, i) => {
+      const y1 = yFor(payers.indexOf(s.from), payers.length);
+      const y2 = yFor(payees.indexOf(s.to), payees.length);
+      const arc = svgEl("path", {
+        d: "M114 " + y1 + "C162 " + y1 + " 158 " + y2 + " 206 " + y2,
+        "stroke-width": (1.25 + (3.5 * s.amountPaise) / largest).toFixed(2),
+        pathLength: "1",
+        class: "flow-arc flow-arc-" + Math.min(i, 5),
+      });
+      svg.appendChild(arc);
+    });
+    const node = (name, x, y, side) => {
+      const group = svgEl("g", { class: "flow-node " + payerTone(name) });
+      group.appendChild(svgEl("circle", { cx: x, cy: y, r: 14 }));
+      const initial = svgEl("text", { x: x, y: y + 4.5, "text-anchor": "middle", class: "flow-initial" });
+      initial.textContent = name.charAt(0).toUpperCase();
+      group.appendChild(initial);
+      const label = svgEl("text", {
+        x: side === "left" ? x - 22 : x + 22,
+        y: y + 4.5,
+        "text-anchor": side === "left" ? "end" : "start",
+        class: "flow-name",
+      });
+      label.textContent = shortName(name);
+      group.appendChild(label);
+      svg.appendChild(group);
+    };
+    payers.forEach((name, i) => node(name, 100, yFor(i, payers.length), "left"));
+    payees.forEach((name, i) => node(name, 220, yFor(i, payees.length), "right"));
+    settleFlow.appendChild(svg);
+  }
+
   function renderSettlements() {
     const settlements = computeSettlements(state);
+    renderSettleProgress(settlements);
+    renderSettleFlow(settlements);
     settleEmpty.hidden = settlements.length > 0;
     settleSummary.hidden = settlements.length === 0;
     settleSummary.textContent =
@@ -1145,16 +1354,13 @@
     description.appendChild(document.createTextNode(expense.description));
     const meta = document.createElement("span");
     meta.className = "expense-row-meta";
+    // The day header above the row already carries the date.
     meta.textContent =
       expense.payer +
-      " \u00b7 " +
-      shortDate(expense.date) +
+      " paid \u00b7 " +
       (expense.participants.length === state.members.length
-        ? ""
-        : " \u00b7 " +
-          expense.participants.length +
-          " of " +
-          state.members.length);
+        ? "split with everyone"
+        : "split " + expense.participants.length + " of " + state.members.length);
     main.appendChild(description);
     main.appendChild(meta);
 
@@ -1181,6 +1387,34 @@
     return entry.type === "payment" ? 0 : 1;
   }
 
+  function dayLabel(dateStr) {
+    const today = todayLocalStr();
+    if (dateStr === today) {
+      return "Today";
+    }
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const pad = (n) => String(n).padStart(2, "0");
+    const yStr = yesterday.getFullYear() + "-" + pad(yesterday.getMonth() + 1) + "-" + pad(yesterday.getDate());
+    return dateStr === yStr ? "Yesterday" : shortDate(dateStr);
+  }
+
+  function createDayHeader(dateStr, totalPaise) {
+    const item = document.createElement("li");
+    item.className = "expense-day";
+    const label = document.createElement("span");
+    label.className = "expense-day-label";
+    label.textContent = dayLabel(dateStr);
+    item.appendChild(label);
+    if (totalPaise > 0) {
+      const total = document.createElement("span");
+      total.className = "expense-day-total";
+      total.textContent = formatMoney(totalPaise, state.currency);
+      item.appendChild(total);
+    }
+    return item;
+  }
+
   function renderExpenses() {
     expenseListEl.replaceChildren();
     expensesEmptyEl.hidden =
@@ -1201,7 +1435,16 @@
         b.value.seq - a.value.seq ||
         typeRank(a) - typeRank(b),
     );
+    const dayTotals = {};
+    state.expenses.forEach((expense) => {
+      dayTotals[expense.date] = (dayTotals[expense.date] || 0) + expense.amountPaise;
+    });
+    let currentDay = null;
     entries.forEach((entry) => {
+      if (entry.value.date !== currentDay) {
+        currentDay = entry.value.date;
+        expenseListEl.appendChild(createDayHeader(currentDay, dayTotals[currentDay] || 0));
+      }
       if (entry.type === "expense") {
         expenseListEl.appendChild(createExpenseItem(entry.value));
         return;
@@ -1217,8 +1460,9 @@
       editHint.textContent = "Edit payment ";
       const avatars = document.createElement("span");
       avatars.className = "payment-avatars";
-      avatars.textContent = payment.from.charAt(0) + "→" + payment.to.charAt(0);
       avatars.setAttribute("aria-hidden", "true");
+      avatars.appendChild(createAvatar(payment.from));
+      avatars.appendChild(createAvatar(payment.to));
       const main = document.createElement("span");
       main.className = "expense-row-main";
       const text = document.createElement("span");
@@ -1229,8 +1473,7 @@
       );
       const meta = document.createElement("span");
       meta.className = "expense-row-meta";
-      meta.textContent =
-        "Payment · " + shortDate(payment.date);
+      meta.textContent = "Recorded payment";
       main.appendChild(text);
       main.appendChild(meta);
       const amount = document.createElement("span");
@@ -1247,17 +1490,43 @@
     });
   }
 
+  // "20–23 Oct" within one month, "28 Oct – 2 Nov" across months, or one date.
+  function tripDateRange() {
+    const dates = state.expenses.map((expense) => expense.date).sort();
+    if (dates.length === 0) {
+      return "";
+    }
+    const first = dates[0];
+    const last = dates[dates.length - 1];
+    if (first === last) {
+      return shortDate(first);
+    }
+    if (first.slice(0, 7) === last.slice(0, 7)) {
+      return Number(first.slice(8)) + "\u2013" + shortDate(last);
+    }
+    return shortDate(first) + " \u2013 " + shortDate(last);
+  }
+
   function renderWorkspace() {
     let totalPaise = 0;
     state.expenses.forEach((expense) => {
       totalPaise += expense.amountPaise;
     });
     tripTitleEl.textContent = state.name;
-    tripSummaryEl.textContent =
-      state.members.length +
-      " members · " +
-      formatMoney(totalPaise, state.currency) +
-      " total";
+    const count = state.expenses.length;
+    const summary = [
+      state.members.length + " people",
+      count === 0 ? "No expenses yet" : count + (count === 1 ? " expense" : " expenses"),
+    ];
+    const range = tripDateRange();
+    if (range) {
+      summary.push(range);
+    }
+    tripSummaryEl.textContent = summary.join(" \u00b7 ");
+    setMoney(tripTotalEl, totalPaise);
+    expensesStat.textContent = count > 0
+      ? formatMoney(Math.round(totalPaise / state.members.length), state.currency) + " per person"
+      : "";
     updateAmountCurrency();
     renderPayerOptions();
     renderBalances();
@@ -1276,6 +1545,7 @@
       });
     });
     paymentAmount.placeholder = Core.amountPlaceholder(state.currency);
+    document.getElementById("payment-amount-prefix").textContent = currencySymbol(state.currency);
     document.getElementById("payment-amount-label").textContent =
       "Amount (" + state.currency + ")";
     setDateBounds(paymentDate);
@@ -1378,6 +1648,9 @@
     pendingSettlement = settlement;
     settleDialogOpener = opener;
     settleDialogAmount.textContent = formatMoney(settlement.amountPaise, state.currency);
+    const arrow = document.createElement("span");
+    arrow.className = "settle-pair-line";
+    settleDialogPair.replaceChildren(createAvatar(settlement.from), arrow, createAvatar(settlement.to));
     settleDialogText.textContent =
       settlement.from +
       " pays " +
@@ -1414,12 +1687,20 @@
       payment: payment.payments[payment.payments.length - 1],
       paymentRecorded: true,
     };
-    showToast("Payment recorded", true);
+    const square = computeSettlements(state).length === 0;
+    if (!square) {
+      settleProgress.classList.remove("just-paid");
+      // Reading layout restarts the pulse when two payments are marked in a row.
+      void settleProgress.offsetWidth;
+      settleProgress.classList.add("just-paid");
+    }
+    showToast(square ? "Payment recorded. Everyone's square." : "Payment recorded", true);
     return true;
   }
 
   function clearPaymentErrors() {
     paymentError.hidden = true;
+    paymentErrorHome.appendChild(paymentError);
     [paymentFrom, paymentTo, paymentAmount, paymentDate].forEach((field) => {
       field.removeAttribute("aria-invalid");
     });
@@ -1428,6 +1709,8 @@
   function showPaymentError(message, field) {
     paymentError.textContent = message;
     paymentError.hidden = false;
+    const fieldWrap = field ? field.closest(".field") : null;
+    (fieldWrap || paymentErrorHome).appendChild(paymentError);
     if (field) {
       field.setAttribute("aria-invalid", "true");
       field.focus();
@@ -1500,6 +1783,7 @@
     clearAllErrors();
     clearDialogSaveError();
     renderParticipants(expense.participants);
+    updateSplitPreview();
     expenseFormTitle.textContent = "Edit expense";
     saveExpenseBtn.textContent = "Save changes";
     deleteExpenseDialogBtn.hidden = false;
@@ -1642,15 +1926,15 @@
     const participants = getSelectedParticipants();
     let valid = true;
 
-    if (description === "") {
-      showError(descriptionError, "Enter a description.");
-      valid = false;
-      descriptionInput.focus();
-    }
-    if (valid && !parsedAmount.ok) {
+    if (!parsedAmount.ok) {
       showError(amountError, parsedAmount.message);
       valid = false;
       amountInput.focus();
+    }
+    if (valid && description === "") {
+      showError(descriptionError, "Enter a description.");
+      valid = false;
+      descriptionInput.focus();
     }
     if (valid && (payer === "" || state.members.indexOf(payer) === -1)) {
       showError(payerError, "Select who paid.");
@@ -1890,6 +2174,7 @@
   });
   amountInput.addEventListener("input", () => {
     clearError(amountError);
+    updateSplitPreview();
   });
   payerSelect.addEventListener("change", () => {
     clearError(payerError);
