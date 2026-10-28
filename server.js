@@ -3,7 +3,11 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
-const crypto = require("crypto");
+const {
+  CONTENT_SECURITY_POLICY,
+  contentHash,
+  stampAssetUrls,
+} = require("./scripts/assets");
 
 const HOST = "0.0.0.0";
 const PORT = Number(process.env.PORT) || 5000;
@@ -65,13 +69,7 @@ function loadFile(fileName) {
     FILE_CACHE.set(fileName, FAILED_FILE);
     return null;
   }
-  const hash = crypto
-    .createHash("sha256")
-    .update(SERVER_JS)
-    .update(fileName)
-    .update(data)
-    .digest("hex")
-    .substring(0, 16);
+  const hash = contentHash(fileName, data, SERVER_JS);
   FILE_CACHE.set(fileName, { data, mtime: stat.mtimeMs, hash });
   return FILE_CACHE.get(fileName);
 }
@@ -171,19 +169,17 @@ function handleHtmlRoute(res, route) {
     sendError(res, 503, "Service unavailable");
     return;
   }
-  const html = index.data
-    .toString("utf8")
-    .replace(/(core\.js|app\.js|styles\.css)\?v=[\w.]*/g, (match, file) => {
-      return file + "?v=" + getEntry(file).hash;
-    });
+  const html = stampAssetUrls(
+    index.data.toString("utf8"),
+    (file) => getEntry(file).hash,
+  );
   send(res, {
     status: 200,
     contentType: route.type,
     body: html,
     headers: {
       "Cache-Control": "no-cache",
-      "Content-Security-Policy":
-        "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'",
+      "Content-Security-Policy": CONTENT_SECURITY_POLICY,
     },
   });
 }

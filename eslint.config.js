@@ -2,6 +2,9 @@
 
 module.exports = [
   {
+    ignores: ['dist/**']
+  },
+  {
     files: ['**/*.js'],
     languageOptions: {
       ecmaVersion: 2021,
@@ -101,7 +104,7 @@ module.exports = [
     }
   },
   {
-    files: ['test/**', 'server.js'],
+    files: ['test/**', 'server.js', 'scripts/**'],
     languageOptions: {
       globals: {
         module: 'writable',
@@ -118,7 +121,7 @@ module.exports = [
     }
   },
   {
-    files: ['server.js'],
+    files: ['server.js', 'scripts/**'],
     rules: {
       'max-len': ['error', { code: 120, ignoreStrings: true, ignoreTemplateLiterals: true, ignoreUrls: true }],
       curly: ['error', 'all'],

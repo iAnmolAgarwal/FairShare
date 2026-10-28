@@ -9,8 +9,9 @@
   "scripts": {
     "dev": "node server.js",
     "start": "node server.js",
+    "build": "node scripts/build.js",
     "test": "node --test",
-    "lint": "eslint server.js core.js app.js test/"
+    "lint": "eslint server.js core.js app.js test/ scripts/"
   },
   "devDependencies": {
     "eslint": "^10.11.0",
